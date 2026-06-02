@@ -78,11 +78,11 @@ for (const menu of menuIds) {
       const beerName = (item.name || "Unknown Beer").trim();
       const sizeOptionValue = menu.label;
       const formattedTitle = `${brewery} — ${beerName}`;
-      const bodyHtml = [
-        `<strong>Style:</strong> ${item.style || "Beer"}`,
-        `<strong>ABV:</strong> ${item.abv || 0}%`,
-        item.description || "",
-      ].join("<br/>");
+      const bodyHtml = item.description || "";
+      const tags = [
+        `Style: ${item.style || "Beer"}`,
+        `ABV: ${item.abv || 0}%`,
+      ].join(", ");
 
       if (skuMap.has(expectedSku)) {
         const { productId, variantId } = skuMap.get(expectedSku);
@@ -95,6 +95,7 @@ for (const menu of menuIds) {
                 title: formattedTitle,
                 body_html: bodyHtml,
                 vendor: brewery,
+                tags,
                 options: [{ name: "Size" }],
               },
             },
@@ -132,6 +133,7 @@ for (const menu of menuIds) {
                 body_html: bodyHtml,
                 vendor: brewery,
                 product_type: "Beer",
+                tags,
                 status: "draft",
                 options: [{ name: "Size" }],
                 variants: [
