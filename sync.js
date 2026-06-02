@@ -5,7 +5,10 @@ const utToken = process.env.UT_TOKEN;
 const shopifyToken = process.env.SHOPIFY_TOKEN;
 const tokenBuffer = Buffer.from(`${utEmail}:${utToken}`).toString("base64");
 const shopifyBase = "https://beerhatch-com.myshopify.com/admin/api/2024-04";
-const menuIds = ["112250", "110590"];
+const menuIds = [
+  { id: "112250", label: "Can" },
+  { id: "110590", label: "Draught" },
+];
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const shopifyHeaders = {
@@ -52,16 +55,16 @@ const summary = {
 };
 
 // --- PROCESS MENUS ---
-for (const menuId of menuIds) {
-  console.log(`Fetching Untappd menu ${menuId}...`);
+for (const menu of menuIds) {
+  console.log(`Fetching Untappd menu ${menu.id} (${menu.label})...`);
   let utfbResponse;
   try {
     utfbResponse = await axios.get(
-      `https://business.untappd.com/api/v1/menus/${menuId}?full=true`,
+      `https://business.untappd.com/api/v1/menus/${menu.id}?full=true`,
       { headers: { "Authorization": `Basic ${tokenBuffer}` } }
     );
   } catch (err) {
-    console.log(`Failed to fetch menu ${menuId}: ${extractError(err)}`);
+    console.log(`Failed to fetch menu ${menu.id}: ${extractError(err)}`);
     continue;
   }
 
@@ -73,8 +76,7 @@ for (const menuId of menuIds) {
       const expectedSku = `UT-${item.id}`;
       const brewery = (item.brewery_name || item.brewery || "Unknown Brewery").trim();
       const beerName = (item.name || "Unknown Beer").trim();
-      const rawSize = item.container_size || item.size || "";
-      const sizeOptionValue = rawSize ? rawSize.trim() : "Standard";
+      const sizeOptionValue = menu.label;
       const formattedTitle = `${brewery} — ${beerName}`;
       const bodyHtml = [
         `<strong>Style:</strong> ${item.style || "Beer"}`,
