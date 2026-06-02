@@ -1,0 +1,24 @@
+name: Untappd to Shopify Sync
+
+on:
+  schedule:
+    - cron: "0 * * * *"  # every hour
+  workflow_dispatch:       # allows manual trigger from GitHub UI
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm install
+
+      - run: node sync.js
+        env:
+          UT_EMAIL: ${{ secrets.UT_EMAIL }}
+          UT_TOKEN: ${{ secrets.UT_TOKEN }}
+          SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_TOKEN }}
