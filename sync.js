@@ -23,6 +23,27 @@ const extractError = (err) => {
   return err.message || "Unknown error";
 };
 
+const BEER_CATEGORY_GID = "gid://shopify/TaxonomyCategory/fb-1-1-1";
+
+const setProductCategory = async (productId) => {
+  try {
+    await axios.post(
+      `${shopifyBase}/graphql.json`,
+      {
+        query: `mutation($id: ID!) {
+          productUpdate(input: { id: $id, category: "${BEER_CATEGORY_GID}" }) {
+            userErrors { field message }
+          }
+        }`,
+        variables: { id: `gid://shopify/Product/${productId}` },
+      },
+      { headers: shopifyHeaders }
+    );
+  } catch (err) {
+    console.log(`Warning: could not set category for ${productId}: ${extractError(err)}`);
+  }
+};
+
 // --- MAP EXISTING CATALOG ---
 console.log("Mapping existing catalog...");
 const skuMap = new Map();
@@ -79,10 +100,13 @@ for (const menu of menuIds) {
       const sizeOptionValue = menu.label;
       const formattedTitle = `${brewery} — ${beerName}`;
       const bodyHtml = item.description || "";
-      const tags = [
+      const tagParts = [
         `Style: ${item.style || "Beer"}`,
         `ABV: ${item.abv || 0}%`,
-      ].join(", ");
+      ];
+      if (item.ibu) tagParts.push(`IBU: ${item.ibu}`);
+      if (item.calories) tagParts.push(`Calories: ${item.calories}`);
+      const tags = tagParts.join(", ");
 
       if (skuMap.has(expectedSku)) {
         const { productId, variantId } = skuMap.get(expectedSku);
@@ -117,6 +141,7 @@ for (const menu of menuIds) {
             { headers: shopifyHeaders }
           );
 
+          await setProductCategory(productId);
           summary.existing_beers_updated++;
           console.log(`Updated: ${formattedTitle}`);
         } catch (err) {
@@ -149,6 +174,7 @@ for (const menu of menuIds) {
             { headers: shopifyHeaders }
           );
 
+          await setProductCategory(res.data.product.id);
           summary.new_beers_added++;
           console.log(`Created: ${formattedTitle}`);
 
