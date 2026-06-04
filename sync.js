@@ -50,7 +50,7 @@ const skuMap = new Map();
 
 try {
   const res = await axios.get(
-    `${shopifyBase}/products.json?limit=250&fields=id,variants`,
+    `${shopifyBase}/products.json?limit=250&fields=id,variants,images`,
     { headers: shopifyHeaders }
   );
   for (const prod of (res.data.products || [])) {
@@ -59,6 +59,7 @@ try {
         skuMap.set(variant.sku.trim(), {
           productId: prod.id,
           variantId: variant.id,
+          hasImage: (prod.images || []).length > 0,
         });
       }
     }
@@ -91,105 +92,127 @@ for (const menu of menuIds) {
 
   const sections = utfbResponse.data.menu?.sections || [];
 
-  for (const section of sections) {
-    for (const item of (section.items || [])) {
-      summary.total_items_checked++;
-      const expectedSku = `UT-${item.id}`;
-      const brewery = (item.brewery_name || item.brewery || "Unknown Brewery").trim();
-      const beerName = (item.name || "Unknown Beer").trim();
-      const sizeOptionValue = menu.label;
-      const formattedTitle = `${brewery} — ${beerName}`;
-      const bodyHtml = item.description || "";
-      const tagParts = [
-        `Style: ${item.style || "Beer"}`,
-        `ABV: ${item.abv || 0}%`,
-      ];
-      if (item.ibu) tagParts.push(`IBU: ${item.ibu}`);
-      if (item.calories) tagParts.push(`Calories: ${item.calories}`);
-      const tags = tagParts.join(", ");
+  for (const item of sections.flatMap(s => s.items || [])) {
+    summary.total_items_checked++;
+    const expectedSku = `UT-${item.id}`;
+    const brewery = (item.brewery_name || item.brewery || "Unknown Brewery").trim();
+    const beerName = (item.name || "Unknown Beer").trim();
+    const formattedTitle = `${brewery} — ${beerName}`;
+    const bodyHtml = item.description || "";
 
-      if (skuMap.has(expectedSku)) {
-        const { productId, variantId } = skuMap.get(expectedSku);
-        try {
-          await axios.put(
-            `${shopifyBase}/products/${productId}.json`,
-            {
-              product: {
-                id: productId,
-                title: formattedTitle,
-                body_html: bodyHtml,
-                vendor: brewery,
-                tags,
-                options: [{ name: "Size" }],
-              },
-            },
-            { headers: shopifyHeaders }
-          );
+    // Container: use first container's size name, fallback to menu label
+    const container = (item.containers || [])[0];
+    const sizeOptionValue = container?.container_size?.name || menu.label;
+    const variantPrice = container?.price ? String(container.price) : undefined;
 
-          await sleep(300);
+    const tagParts = [
+      `Style: ${item.style || "Beer"}`,
+      `ABV: ${item.abv || 0}%`,
+    ];
+    if (item.ibu && item.ibu !== "0.0") tagParts.push(`IBU: ${item.ibu}`);
+    if (item.calories) tagParts.push(`Calories: ${item.calories}`);
+    const tags = tagParts.join(", ");
 
-          await axios.put(
-            `${shopifyBase}/variants/${variantId}.json`,
-            {
-              variant: {
-                id: variantId,
-                sku: expectedSku,
-                barcode: item.upc || "",
-                option1: sizeOptionValue,
-              },
-            },
-            { headers: shopifyHeaders }
-          );
+    // Label image from Untappd
+    const labelImage = item.label_image_hd || item.label_image || null;
 
-          await setProductCategory(productId);
-          summary.existing_beers_updated++;
-          console.log(`Updated: ${formattedTitle}`);
-        } catch (err) {
-          summary.failed_items++;
-          console.log(`Failed update for ${formattedTitle}: ${extractError(err)}`);
+    if (skuMap.has(expectedSku)) {
+      const { productId, variantId, hasImage } = skuMap.get(expectedSku);
+      try {
+        const productPayload = {
+          product: {
+            id: productId,
+            title: formattedTitle,
+            body_html: bodyHtml,
+            vendor: brewery,
+            tags,
+            options: [{ name: "Size" }],
+          },
+        };
+        // Only set image if product has none yet
+        if (labelImage && !hasImage) {
+          productPayload.product.images = [{ src: labelImage }];
         }
-      } else {
-        try {
-          const res = await axios.post(
-            `${shopifyBase}/products.json`,
-            {
-              product: {
-                title: formattedTitle,
-                body_html: bodyHtml,
-                vendor: brewery,
-                product_type: "Beer",
-                tags,
-                status: "draft",
-                options: [{ name: "Size" }],
-                variants: [
-                  {
-                    sku: expectedSku,
-                    barcode: item.upc || "",
-                    inventory_management: "shopify",
-                    option1: sizeOptionValue,
-                  },
-                ],
-              },
-            },
-            { headers: shopifyHeaders }
-          );
 
-          await setProductCategory(res.data.product.id);
-          summary.new_beers_added++;
-          console.log(`Created: ${formattedTitle}`);
+        await axios.put(
+          `${shopifyBase}/products/${productId}.json`,
+          productPayload,
+          { headers: shopifyHeaders }
+        );
 
-          skuMap.set(expectedSku, {
-            productId: res.data.product.id,
-            variantId: res.data.product.variants[0].id,
-          });
-        } catch (err) {
-          summary.failed_items++;
-          console.log(`Failed creation for ${formattedTitle}: ${extractError(err)}`);
-        }
+        await sleep(300);
+
+        const variantPayload = {
+          variant: {
+            id: variantId,
+            sku: expectedSku,
+            barcode: item.upc || "",
+            option1: sizeOptionValue,
+          },
+        };
+        if (variantPrice !== undefined) variantPayload.variant.price = variantPrice;
+
+        await axios.put(
+          `${shopifyBase}/variants/${variantId}.json`,
+          variantPayload,
+          { headers: shopifyHeaders }
+        );
+
+        await setProductCategory(productId);
+        summary.existing_beers_updated++;
+        console.log(`Updated: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
+      } catch (err) {
+        summary.failed_items++;
+        console.log(`Failed update for ${formattedTitle}: ${extractError(err)}`);
       }
+    } else {
+      try {
+        const newVariant = {
+          sku: expectedSku,
+          barcode: item.upc || "",
+          inventory_management: "shopify",
+          option1: sizeOptionValue,
+        };
+        if (variantPrice !== undefined) newVariant.price = variantPrice;
 
-      await sleep(500);
+        const createPayload = {
+          product: {
+            title: formattedTitle,
+            body_html: bodyHtml,
+            vendor: brewery,
+            product_type: "Beer",
+            tags,
+            status: "draft",
+            options: [{ name: "Size" }],
+            variants: [newVariant],
+          },
+        };
+        if (labelImage) {
+          createPayload.product.images = [{ src: labelImage }];
+        }
+
+        const res = await axios.post(
+          `${shopifyBase}/products.json`,
+          createPayload,
+          { headers: shopifyHeaders }
+        );
+
+        await setProductCategory(res.data.product.id);
+        summary.new_beers_added++;
+        console.log(`Created: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
+
+        skuMap.set(expectedSku, {
+          productId: res.data.product.id,
+          variantId: res.data.product.variants[0].id,
+          hasImage: !!labelImage,
+        });
+      } catch (err) {
+        summary.failed_items++;
+        console.log(`Failed creation for ${formattedTitle}: ${extractError(err)}`);
+      }
     }
+
+    await sleep(500);
   }
 }
 
