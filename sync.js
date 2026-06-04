@@ -98,7 +98,10 @@ for (const menu of menuIds) {
     const brewery = (item.brewery_name || item.brewery || "Unknown Brewery").trim();
     const beerName = (item.name || "Unknown Beer").trim();
     const formattedTitle = `${brewery} — ${beerName}`;
-    const bodyHtml = item.description || "";
+    const bodyHtml = [
+      `<strong>Style:</strong> ${item.style || "Beer"} &nbsp;|&nbsp; <strong>ABV:</strong> ${item.abv || 0}%`,
+      item.description || "",
+    ].filter(Boolean).join("<br/><br/>");
 
     // Container: use first container's size name, fallback to menu label
     const container = (item.containers || [])[0];
