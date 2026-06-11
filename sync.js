@@ -98,8 +98,10 @@ for (const menu of menuIds) {
     const brewery = (item.brewery_name || item.brewery || "Unknown Brewery").trim();
     const beerName = (item.name || "Unknown Beer").trim();
     const formattedTitle = `${brewery} — ${beerName}`;
+    const rating = parseFloat(item.rating_score) || 0;
     const bodyHtml = [
       `<strong>Style:</strong> ${item.style || "Beer"} &nbsp;|&nbsp; <strong>ABV:</strong> ${item.abv || 0}%`,
+      rating > 3.8 ? `<strong>Untappd Rating:</strong> ${rating.toFixed(2)} ⭐` : "",
       item.description || "",
     ].filter(Boolean).join("<br/><br/>");
 
@@ -114,6 +116,7 @@ for (const menu of menuIds) {
     ];
     if (item.ibu && item.ibu !== "0.0") tagParts.push(`IBU: ${item.ibu}`);
     if (item.calories) tagParts.push(`Calories: ${item.calories}`);
+    if (rating > 3.8) tagParts.push(`Untappd: ${rating.toFixed(2)}`);
     const tags = tagParts.join(", ");
 
     // Label image from Untappd
