@@ -91,8 +91,14 @@ for (const menu of menuIds) {
   }
 
   const sections = utfbResponse.data.menu?.sections || [];
+  const allItems = sections.flatMap(s => s.items || []);
+  if (allItems[0]) {
+    const first = allItems[0];
+    console.log(`DEBUG first item keys: ${Object.keys(first).join(', ')}`);
+    console.log(`DEBUG rating fields: rating=${first.rating} rating_score=${first.rating_score} stats=${JSON.stringify(first.stats)}`);
+  }
 
-  for (const item of sections.flatMap(s => s.items || [])) {
+  for (const item of allItems) {
     summary.total_items_checked++;
     const expectedSku = `UT-${item.id}`;
     const brewery = (item.brewery_name || item.brewery || "Unknown Brewery").trim();
