@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Beer Hatch — Photo Uploader</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: #0f0f0f;
+      color: #f0f0f0;
+      min-height: 100vh;
+      padding: 32px 20px;
+    }
+
+    .container { max-width: 760px; margin: 0 auto; }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 4px;
+      color: #fff;
+    }
+    .subtitle { font-size: 0.9rem; color: #888; margin-bottom: 28px; }
+
+    /* ── Naming convention card ── */
+    .naming-card {
+      background: #1a1a2e;
+      border: 1px solid #f5a623;
+      border-radius: 10px;
+      padding: 20px 24px;
+      margin-bottom: 28px;
+    }
+    .naming-card h2 {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #f5a623;
+      margin-bottom: 12px;
+    }
+    .naming-card p {
+      font-size: 0.92rem;
+      color: #ccc;
+      line-height: 1.6;
+      margin-bottom: 10px;
+    }
+    .naming-card p:last-child { margin-bottom: 0; }
+    .pill {
+      display: inline-block;
+      background: #f5a62322;
+      border: 1px solid #f5a62366;
+      border-radius: 5px;
+      padding: 2px 8px;
+      font-family: monospace;
+      font-size: 0.88rem;
+      color: #f5c842;
+    }
+    .check { color: #4caf50; margin-right: 4px; }
+    .cross { color: #f44336; margin-right: 4px; }
+
+    /* ── Drop zone ── */
+    .drop-zone {
+      border: 2px dashed #333;
+      border-radius: 12px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    .drop-zone.dragging {
+      border-color: #f5a623;
+      background: #f5a62310;
+    }
+    .drop-zone input[type="file"] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+    .drop-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .drop-zone h3 { font-size: 1.1rem; color: #ddd; margin-bottom: 6px; }
+    .drop-zone p { font-size: 0.85rem; color: #666; }
+
+    /* ── File list ── */
+    #file-list { margin-bottom: 20px; }
+    .file-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: #1a1a1a;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.88rem;
+    }
+    .file-name { flex: 1; color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-status { font-size: 0.8rem; color: #888; flex-shrink: 0; }
+
+    /* ── Upload button ── */
+    #upload-btn {
+      display: none;
+      width: 100%;
+      padding: 14px;
+      background: #f5a623;
+      color: #000;
+      font-size: 1rem;
+      font-weight: 700;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      margin-bottom: 24px;
+      transition: background 0.15s;
+    }
+    #upload-btn:hover { background: #f5b84a; }
+    #upload-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
+
+    /* ── Results ── */
+    #results { margin-top: 8px; }
+    .result-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      font-size: 0.88rem;
+    }
+    .result-item.uploaded { background: #0d2b0d; }
+    .result-item.skipped  { background: #1a1a0d; }
+    .result-item.no_match { background: #2b0d0d; }
+    .result-item.failed   { background: #2b0d0d; }
+    .result-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .result-file { font-weight: 600; color: #eee; }
+    .result-msg  { color: #aaa; font-size: 0.82rem; margin-top: 2px; }
+
+    /* ── Product browser ── */
+    details { margin-top: 32px; }
+    summary {
+      cursor: pointer;
+      color: #888;
+      font-size: 0.85rem;
+      user-select: none;
+      margin-bottom: 12px;
+    }
+    summary:hover { color: #ccc; }
+    #product-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .prod-row {
+      font-size: 0.8rem;
+      padding: 6px 10px;
+      background: #1a1a1a;
+      border-radius: 6px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .prod-row.has-image { color: #666; }
+    .prod-row.no-image  { color: #ddd; }
+    .img-badge {
+      font-size: 0.7rem;
+      padding: 1px 5px;
+      border-radius: 4px;
+      margin-right: 6px;
+    }
+    .img-badge.yes { background: #0d2b0d; color: #4caf50; }
+    .img-badge.no  { background: #2b0d0d; color: #f44336; }
+
+    .refresh-btn {
+      font-size: 0.8rem;
+      background: none;
+      border: 1px solid #333;
+      border-radius: 6px;
+      color: #888;
+      padding: 4px 10px;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    .refresh-btn:hover { border-color: #666; color: #ccc; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Beer Hatch — Photo Uploader</h1>
+  <p class="subtitle">Upload beer label photos directly to Shopify</p>
+
+  <div class="naming-card">
+    <h2>⚠ File Naming — Important</h2>
+    <p>Photos must be named to match the beer in Shopify. You have two options:</p>
+    <p>
+      <span class="check">✓</span> <strong>Beer name only</strong> — <span class="pill">Gamma Ray.jpg</span><br>
+      <small style="color:#777;margin-left:22px">Matches the beer name part of the product title</small>
+    </p>
+    <p>
+      <span class="check">✓</span> <strong>Full product title</strong> — <span class="pill">Beavertown — Gamma Ray.jpg</span><br>
+      <small style="color:#777;margin-left:22px">Exact match — use this if two beers share the same name</small>
+    </p>
+    <p>
+      <span class="cross">✗</span> <strong>Don't use</strong> — <span class="pill">IMG_0042.jpg</span> or <span class="pill">photo1.jpg</span><br>
+      <small style="color:#777;margin-left:22px">Random filenames won't match anything and will be skipped</small>
+    </p>
+    <p style="margin-top:12px;font-size:0.82rem;color:#888">
+      Products that already have an image are skipped automatically. Scroll down to see which products are missing photos.
+    </p>
+  </div>
+
+  <div class="drop-zone" id="drop-zone">
+    <input type="file" id="file-input" multiple accept="image/jpeg,image/png,image/webp,image/gif" />
+    <div class="drop-icon">📷</div>
+    <h3>Drop photos here</h3>
+    <p>or click to browse — JPG, PNG, WEBP, GIF accepted</p>
+  </div>
+
+  <div id="file-list"></div>
+  <button id="upload-btn">Upload Photos</button>
+  <div id="results"></div>
+
+  <details>
+    <summary>Browse products <button class="refresh-btn" id="refresh-btn" type="button">↺ Refresh</button></summary>
+    <div id="product-list">Loading…</div>
+  </details>
+</div>
+
+<script>
+  const dropZone = document.getElementById('drop-zone');
+  const fileInput = document.getElementById('file-input');
+  const fileList = document.getElementById('file-list');
+  const uploadBtn = document.getElementById('upload-btn');
+  const resultsEl = document.getElementById('results');
+  const productList = document.getElementById('product-list');
+  const refreshBtn = document.getElementById('refresh-btn');
+
+  let selectedFiles = [];
+
+  // ── Drag & drop ──
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragging');
+    setFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')));
+  });
+  fileInput.addEventListener('change', () => setFiles([...fileInput.files]));
+
+  function setFiles(files) {
+    selectedFiles = files;
+    fileList.innerHTML = '';
+    resultsEl.innerHTML = '';
+
+    if (!files.length) { uploadBtn.style.display = 'none'; return; }
+
+    files.forEach(f => {
+      const div = document.createElement('div');
+      div.className = 'file-item';
+      div.innerHTML = `<span class="file-name">📄 ${f.name}</span><span class="file-status">${(f.size / 1024).toFixed(0)} KB</span>`;
+      fileList.appendChild(div);
+    });
+
+    uploadBtn.style.display = 'block';
+    uploadBtn.textContent = `Upload ${files.length} photo${files.length > 1 ? 's' : ''}`;
+  }
+
+  // ── Upload ──
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFiles.length) return;
+    uploadBtn.disabled = true;
+    uploadBtn.textContent = 'Uploading…';
+    resultsEl.innerHTML = '';
+
+    const form = new FormData();
+    selectedFiles.forEach(f => form.append('photos', f));
+
+    try {
+      const res = await fetch('/upload', { method: 'POST', body: form });
+      const results = await res.json();
+      showResults(results);
+    } catch (err) {
+      resultsEl.innerHTML = `<div class="result-item failed"><span class="result-icon">❌</span><div><div class="result-file">Upload failed</div><div class="result-msg">${err.message}</div></div></div>`;
+    }
+
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = `Upload ${selectedFiles.length} photo${selectedFiles.length > 1 ? 's' : ''}`;
+    loadProducts(); // refresh product list to reflect new images
+  });
+
+  function showResults(results) {
+    const icons = { uploaded: '✅', skipped: '⏭', no_match: '❓', failed: '❌' };
+    const labels = { uploaded: 'Uploaded', skipped: 'Skipped', no_match: 'No match', failed: 'Failed' };
+    results.forEach(r => {
+      const div = document.createElement('div');
+      div.className = `result-item ${r.status}`;
+      div.innerHTML = `
+        <span class="result-icon">${icons[r.status]}</span>
+        <div>
+          <div class="result-file">${r.file}</div>
+          <div class="result-msg">${labels[r.status]}${r.message ? ' — ' + r.message : ''}</div>
+        </div>`;
+      resultsEl.appendChild(div);
+    });
+  }
+
+  // ── Product list ──
+  async function loadProducts() {
+    try {
+      const res = await fetch('/products');
+      const products = await res.json();
+      productList.innerHTML = '';
+      const sorted = products.sort((a, b) => a.hasImage - b.hasImage || a.title.localeCompare(b.title));
+      sorted.forEach(p => {
+        const div = document.createElement('div');
+        div.className = `prod-row ${p.hasImage ? 'has-image' : 'no-image'}`;
+        div.title = p.title;
+        div.innerHTML = `<span class="img-badge ${p.hasImage ? 'yes' : 'no'}">${p.hasImage ? 'IMG' : 'NO IMG'}</span>${p.title}`;
+        productList.appendChild(div);
+      });
+    } catch (e) {
+      productList.textContent = 'Could not load products.';
+    }
+  }
+
+  refreshBtn.addEventListener('click', async () => {
+    refreshBtn.textContent = '…';
+    await fetch('/refresh', { method: 'POST' });
+    await loadProducts();
+    refreshBtn.textContent = '↺ Refresh';
+  });
+
+  loadProducts();
+</script>
+</body>
+</html>
