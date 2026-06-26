@@ -46,25 +46,28 @@ const setProductCategory = async (productId) => {
 
 // --- MAP EXISTING CATALOG ---
 console.log("Mapping existing catalog...");
-const skuMap = new Map();
+const skuMap = new Map();   // SKU → { productId, variantId, hasImage }
+const titleMap = new Map(); // product title → { productId, hasImage }
 
 try {
   const res = await axios.get(
-    `${shopifyBase}/products.json?limit=250&fields=id,variants,images`,
+    `${shopifyBase}/products.json?limit=250&fields=id,title,variants,images`,
     { headers: shopifyHeaders }
   );
   for (const prod of (res.data.products || [])) {
+    const hasImage = (prod.images || []).length > 0;
+    titleMap.set(prod.title.trim(), { productId: prod.id, hasImage });
     for (const variant of (prod.variants || [])) {
       if (variant.sku) {
         skuMap.set(variant.sku.trim(), {
           productId: prod.id,
           variantId: variant.id,
-          hasImage: (prod.images || []).length > 0,
+          hasImage,
         });
       }
     }
   }
-  console.log(`Mapped ${skuMap.size} existing variants.`);
+  console.log(`Mapped ${skuMap.size} existing variants across ${titleMap.size} products.`);
 } catch (err) {
   console.log(`Warning mapping catalog: ${extractError(err)}`);
 }
@@ -73,6 +76,7 @@ const summary = {
   total_items_checked: 0,
   new_beers_added: 0,
   existing_beers_updated: 0,
+  variants_added: 0,
   failed_items: 0,
 };
 
@@ -101,11 +105,10 @@ for (const menu of menuIds) {
     const rating = parseFloat(item.rating) || 0;
     const bodyHtml = [
       `<strong>Style:</strong> ${item.style || "Beer"} &nbsp;|&nbsp; <strong>ABV:</strong> ${item.abv || 0}%`,
-      rating > 3.8 ? `<strong>Untappd Rating:</strong> ${rating.toFixed(2)} ⭐` : "",
+      rating >= 3 ? `<strong>Untappd Rating:</strong> ${rating.toFixed(2)} ⭐` : "",
       item.description || "",
     ].filter(Boolean).join("<br/><br/>");
 
-    // Container: use first container's size name, fallback to menu label
     const container = (item.containers || [])[0];
     const sizeOptionValue = container?.container_size?.name || menu.label;
     const variantPrice = container?.price ? String(container.price) : undefined;
@@ -116,13 +119,13 @@ for (const menu of menuIds) {
     ];
     if (item.ibu && item.ibu !== "0.0") tagParts.push(`IBU: ${item.ibu}`);
     if (item.calories) tagParts.push(`Calories: ${item.calories}`);
-    if (rating > 3.8) tagParts.push(`Untappd: ${rating.toFixed(2)}`);
+    if (rating >= 3) tagParts.push(`Untappd: ${rating.toFixed(2)}`);
     const tags = tagParts.join(", ");
 
-    // Label image from Untappd
     const labelImage = item.label_image_hd || item.label_image || null;
 
     if (skuMap.has(expectedSku)) {
+      // --- UPDATE existing variant ---
       const { productId, variantId, hasImage } = skuMap.get(expectedSku);
       try {
         const productPayload = {
@@ -135,7 +138,6 @@ for (const menu of menuIds) {
             options: [{ name: "Size" }],
           },
         };
-        // Only set image if product has none yet
         if (labelImage && !hasImage) {
           productPayload.product.images = [{ src: labelImage }];
         }
@@ -171,7 +173,60 @@ for (const menu of menuIds) {
         summary.failed_items++;
         console.log(`Failed update for ${formattedTitle}: ${extractError(err)}`);
       }
+    } else if (titleMap.has(formattedTitle)) {
+      // --- ADD variant to existing product (same beer, different size) ---
+      const { productId, hasImage: prodHasImage } = titleMap.get(formattedTitle);
+      try {
+        const newVariant = {
+          sku: expectedSku,
+          barcode: item.upc || "",
+          inventory_management: "shopify",
+          option1: sizeOptionValue,
+        };
+        if (variantPrice !== undefined) newVariant.price = variantPrice;
+
+        const varRes = await axios.post(
+          `${shopifyBase}/products/${productId}/variants.json`,
+          { variant: newVariant },
+          { headers: shopifyHeaders }
+        );
+
+        await sleep(300);
+
+        const productPayload = {
+          product: {
+            id: productId,
+            body_html: bodyHtml,
+            vendor: brewery,
+            tags,
+          },
+        };
+        if (labelImage && !prodHasImage) {
+          productPayload.product.images = [{ src: labelImage }];
+        }
+
+        await axios.put(
+          `${shopifyBase}/products/${productId}.json`,
+          productPayload,
+          { headers: shopifyHeaders }
+        );
+
+        await setProductCategory(productId);
+
+        skuMap.set(expectedSku, {
+          productId,
+          variantId: varRes.data.variant.id,
+          hasImage: prodHasImage || !!labelImage,
+        });
+
+        summary.variants_added++;
+        console.log(`Added variant: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
+      } catch (err) {
+        summary.failed_items++;
+        console.log(`Failed adding variant for ${formattedTitle}: ${extractError(err)}`);
+      }
     } else {
+      // --- CREATE new product ---
       try {
         const newVariant = {
           sku: expectedSku,
@@ -204,13 +259,18 @@ for (const menu of menuIds) {
           { headers: shopifyHeaders }
         );
 
-        await setProductCategory(res.data.product.id);
+        const newProductId = res.data.product.id;
+        await setProductCategory(newProductId);
         summary.new_beers_added++;
         console.log(`Created: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
 
         skuMap.set(expectedSku, {
-          productId: res.data.product.id,
+          productId: newProductId,
           variantId: res.data.product.variants[0].id,
+          hasImage: !!labelImage,
+        });
+        titleMap.set(formattedTitle, {
+          productId: newProductId,
           hasImage: !!labelImage,
         });
       } catch (err) {
@@ -227,4 +287,5 @@ console.log("\n--- Sync complete ---");
 console.log(`Total checked: ${summary.total_items_checked}`);
 console.log(`Created: ${summary.new_beers_added}`);
 console.log(`Updated: ${summary.existing_beers_updated}`);
+console.log(`Variants added: ${summary.variants_added}`);
 console.log(`Failed: ${summary.failed_items}`);
