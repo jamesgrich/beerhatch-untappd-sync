@@ -353,8 +353,8 @@
     resultsEl.innerHTML = '';
     progressWrap.style.display = 'block';
 
-    const icons   = { uploaded: '✅', skipped: '⏭', no_match: '❓', failed: '❌' };
-    const labels  = { uploaded: 'Uploaded', skipped: 'Skipped — already has a photo', no_match: 'No match — check the filename', failed: 'Failed' };
+    const icons   = { queued: '🕐', skipped: '⏭', no_match: '❓', failed: '❌' };
+    const labels  = { queued: 'Queued — will appear in Shopify within ~1 minute', skipped: 'Skipped — already has a photo', no_match: 'No match — check the filename', failed: 'Failed' };
 
     for (let i = 0; i < selectedFiles.length; i++) {
       const file = selectedFiles[i];
@@ -396,7 +396,7 @@
   async function loadProducts() {
     productList.textContent = 'Loading…';
     try {
-      const res = await fetch('/.netlify/functions/products');
+      const res = await fetch('/products.json');
       const products = await res.json();
       const noImage = products.filter(p => !p.hasImage).length;
       prodCount.textContent = `${products.length} products · ${noImage} missing photos`;

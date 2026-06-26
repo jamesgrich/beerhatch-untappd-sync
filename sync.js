@@ -227,3 +227,21 @@ console.log(`Total checked: ${summary.total_items_checked}`);
 console.log(`Created: ${summary.new_beers_added}`);
 console.log(`Updated: ${summary.existing_beers_updated}`);
 console.log(`Failed: ${summary.failed_items}`);
+
+// Write products.json for the Netlify photo uploader
+try {
+  const { writeFileSync } = await import("fs");
+  const prodRes = await axios.get(
+    `${shopifyBase}/products.json?limit=250&fields=id,title,images`,
+    { headers: shopifyHeaders }
+  );
+  const productsJson = (prodRes.data.products || []).map(p => ({
+    id: p.id,
+    title: p.title,
+    hasImage: (p.images || []).length > 0,
+  }));
+  writeFileSync("public/products.json", JSON.stringify(productsJson));
+  console.log(`Wrote public/products.json (${productsJson.length} products)`);
+} catch (err) {
+  console.log(`Warning: could not write products.json: ${err.message}`);
+}

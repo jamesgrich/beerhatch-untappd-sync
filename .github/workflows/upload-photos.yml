@@ -1,13 +1,16 @@
-name: Untappd to Shopify Sync
+name: Upload Pending Photos to Shopify
 
 on:
-  schedule:
-    - cron: "0 * * * *"  # every hour
-  workflow_dispatch:
+  push:
+    paths:
+      - "pending-photos/**"
 
 jobs:
-  sync:
+  upload:
     runs-on: ubuntu-latest
+    concurrency:
+      group: upload-photos
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -19,15 +22,13 @@ jobs:
 
       - run: npm install
 
-      - run: node sync.js
+      - run: node process-pending-photos.js
         env:
-          UT_EMAIL: ${{ secrets.UT_EMAIL }}
-          UT_TOKEN: ${{ secrets.UT_TOKEN }}
           SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_TOKEN }}
 
-      - name: Commit updated products.json
+      - name: Remove processed photos from repo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/products.json
-          git diff --staged --quiet || (git commit -m "chore: update products.json [skip ci]" && git push)
+          git add pending-photos/
+          git diff --staged --quiet || (git commit -m "chore: remove processed photos [skip ci]" && git push)

@@ -1,92 +1,57 @@
 import axios from "axios";
 
-const shopifyBase = "https://beerhatch-com.myshopify.com/admin/api/2024-04";
-
-const buildHeaders = () => ({
-  "X-Shopify-Access-Token": process.env.SHOPIFY_TOKEN,
-  "Content-Type": "application/json",
-});
-
-const extractError = (err) => {
-  const body = err.response?.data;
-  if (body?.errors) return JSON.stringify(body.errors);
-  if (body?.error) return body.error;
-  return err.message || "Unknown error";
-};
+const REPO = "jamesgrich/beerhatch-untappd-sync";
 
 export const handler = async (event) => {
-  if (event.httpMethod !== "POST") {
-    return { statusCode: 405, body: "Method not allowed" };
-  }
+  if (event.httpMethod !== "POST") return { statusCode: 405 };
 
   let filename, attachment;
   try {
     ({ filename, attachment } = JSON.parse(event.body));
   } catch {
-    return { statusCode: 400, body: JSON.stringify({ error: "Invalid request body" }) };
+    return { statusCode: 400, body: JSON.stringify({ error: "Invalid request" }) };
   }
 
   if (!filename || !attachment) {
-    return { statusCode: 400, body: JSON.stringify({ error: "Missing filename or attachment" }) };
+    return { statusCode: 400, body: JSON.stringify({ error: "Missing filename or image data" }) };
   }
 
-  // Fetch products fresh each call (serverless — no shared memory)
-  let products;
+  const githubPat = process.env.GITHUB_PAT;
+  const filePath = `pending-photos/${filename}`;
+  const apiUrl = `https://api.github.com/repos/${REPO}/contents/${filePath}`;
+  const headers = {
+    Authorization: `Bearer ${githubPat}`,
+    Accept: "application/vnd.github+json",
+  };
+
+  // Check if file already exists (need its sha to overwrite)
+  let sha;
   try {
-    const res = await axios.get(
-      `${shopifyBase}/products.json?limit=250&fields=id,title,images`,
-      { headers: buildHeaders() }
-    );
-    products = res.data.products || [];
-  } catch (err) {
-    return { statusCode: 502, body: JSON.stringify({ error: `Could not fetch products: ${extractError(err)}` }) };
-  }
-
-  // Build lookup maps — full title and beer-name-only
-  const byFullTitle = new Map();
-  const byBeerName = new Map();
-  for (const prod of products) {
-    byFullTitle.set(prod.title.trim().toLowerCase(), prod);
-    const dashIdx = prod.title.indexOf(" — ");
-    if (dashIdx !== -1) {
-      byBeerName.set(prod.title.slice(dashIdx + 3).trim().toLowerCase(), prod);
-    }
-  }
-
-  const ext = filename.lastIndexOf(".");
-  const nameWithoutExt = (ext !== -1 ? filename.slice(0, ext) : filename).trim();
-  const nameLower = nameWithoutExt.toLowerCase();
-
-  const product = byFullTitle.get(nameLower) || byBeerName.get(nameLower);
-
-  if (!product) {
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ status: "no_match", message: "No matching product found" }),
-    };
-  }
-
-  if ((product.images || []).length > 0) {
-    return {
-      statusCode: 200,
-      body: JSON.stringify({ status: "skipped", message: `${product.title} already has an image` }),
-    };
+    const existing = await axios.get(apiUrl, { headers });
+    sha = existing.data.sha;
+  } catch {
+    // File doesn't exist yet — fine
   }
 
   try {
-    await axios.post(
-      `${shopifyBase}/products/${product.id}/images.json`,
-      { image: { attachment, filename } },
-      { headers: buildHeaders() }
-    );
+    await axios.put(apiUrl, {
+      message: `Add pending photo: ${filename}`,
+      content: attachment,
+      ...(sha ? { sha } : {}),
+    }, { headers });
+
     return {
       statusCode: 200,
-      body: JSON.stringify({ status: "uploaded", message: product.title }),
+      body: JSON.stringify({
+        status: "queued",
+        message: "Queued — will appear in Shopify within ~1 minute",
+      }),
     };
   } catch (err) {
+    const detail = err.response?.data?.message || err.message;
     return {
       statusCode: 200,
-      body: JSON.stringify({ status: "failed", message: extractError(err) }),
+      body: JSON.stringify({ status: "failed", message: detail }),
     };
   }
 };
