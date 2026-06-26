@@ -17,15 +17,10 @@
 
     .container { max-width: 760px; margin: 0 auto; }
 
-    h1 {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-bottom: 4px;
-      color: #fff;
-    }
+    h1 { font-size: 1.5rem; font-weight: 700; margin-bottom: 4px; color: #fff; }
     .subtitle { font-size: 0.9rem; color: #888; margin-bottom: 28px; }
 
-    /* ── Naming convention card ── */
+    /* ── Naming guide ── */
     .naming-card {
       background: #1a1a2e;
       border: 1px solid #f5a623;
@@ -34,47 +29,47 @@
       margin-bottom: 28px;
     }
     .naming-card h2 {
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: #f5a623;
+      margin-bottom: 14px;
+    }
+    .rule {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
       margin-bottom: 12px;
+      font-size: 0.9rem;
     }
-    .naming-card p {
-      font-size: 0.92rem;
-      color: #ccc;
-      line-height: 1.6;
-      margin-bottom: 10px;
-    }
-    .naming-card p:last-child { margin-bottom: 0; }
+    .rule:last-child { margin-bottom: 0; }
+    .rule-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+    .rule-label { color: #ccc; line-height: 1.5; }
+    .rule-label strong { color: #fff; }
     .pill {
       display: inline-block;
-      background: #f5a62322;
-      border: 1px solid #f5a62366;
+      background: #f5a62320;
+      border: 1px solid #f5a62355;
       border-radius: 5px;
-      padding: 2px 8px;
+      padding: 1px 7px;
       font-family: monospace;
-      font-size: 0.88rem;
+      font-size: 0.85rem;
       color: #f5c842;
     }
-    .check { color: #4caf50; margin-right: 4px; }
-    .cross { color: #f44336; margin-right: 4px; }
+    .rule-hint { display: block; font-size: 0.8rem; color: #666; margin-top: 3px; }
 
     /* ── Drop zone ── */
     .drop-zone {
-      border: 2px dashed #333;
+      border: 2px dashed #2a2a2a;
       border-radius: 12px;
-      padding: 48px 24px;
+      padding: 52px 24px;
       text-align: center;
       cursor: pointer;
-      transition: border-color 0.2s, background 0.2s;
+      transition: border-color 0.15s, background 0.15s;
       margin-bottom: 20px;
       position: relative;
     }
-    .drop-zone.dragging {
-      border-color: #f5a623;
-      background: #f5a62310;
-    }
+    .drop-zone.dragging { border-color: #f5a623; background: #f5a62310; }
     .drop-zone input[type="file"] {
       position: absolute;
       inset: 0;
@@ -83,30 +78,30 @@
       width: 100%;
       height: 100%;
     }
-    .drop-icon { font-size: 2.5rem; margin-bottom: 12px; }
+    .drop-icon { font-size: 2.8rem; margin-bottom: 12px; }
     .drop-zone h3 { font-size: 1.1rem; color: #ddd; margin-bottom: 6px; }
-    .drop-zone p { font-size: 0.85rem; color: #666; }
+    .drop-zone p { font-size: 0.85rem; color: #555; }
 
-    /* ── File list ── */
+    /* ── File queue ── */
     #file-list { margin-bottom: 20px; }
     .file-item {
       display: flex;
       align-items: center;
       gap: 10px;
-      padding: 10px 14px;
+      padding: 9px 14px;
       background: #1a1a1a;
       border-radius: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-size: 0.88rem;
     }
     .file-name { flex: 1; color: #ddd; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .file-status { font-size: 0.8rem; color: #888; flex-shrink: 0; }
+    .file-size { font-size: 0.78rem; color: #555; flex-shrink: 0; }
 
     /* ── Upload button ── */
     #upload-btn {
       display: none;
       width: 100%;
-      padding: 14px;
+      padding: 15px;
       background: #f5a623;
       color: #000;
       font-size: 1rem;
@@ -117,220 +112,312 @@
       margin-bottom: 24px;
       transition: background 0.15s;
     }
-    #upload-btn:hover { background: #f5b84a; }
-    #upload-btn:disabled { background: #555; color: #888; cursor: not-allowed; }
+    #upload-btn:hover:not(:disabled) { background: #f5b84a; }
+    #upload-btn:disabled { background: #333; color: #666; cursor: not-allowed; }
+
+    /* ── Progress ── */
+    #progress-wrap { display: none; margin-bottom: 20px; }
+    .progress-bar-bg {
+      height: 6px;
+      background: #222;
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 8px;
+    }
+    #progress-bar { height: 100%; background: #f5a623; width: 0; transition: width 0.3s; border-radius: 3px; }
+    #progress-label { font-size: 0.82rem; color: #888; }
 
     /* ── Results ── */
-    #results { margin-top: 8px; }
+    #results { margin-bottom: 32px; }
     .result-item {
       display: flex;
       align-items: flex-start;
       gap: 10px;
       padding: 10px 14px;
       border-radius: 8px;
-      margin-bottom: 8px;
+      margin-bottom: 6px;
       font-size: 0.88rem;
     }
-    .result-item.uploaded { background: #0d2b0d; }
-    .result-item.skipped  { background: #1a1a0d; }
-    .result-item.no_match { background: #2b0d0d; }
-    .result-item.failed   { background: #2b0d0d; }
-    .result-icon { font-size: 1.1rem; flex-shrink: 0; }
+    .result-item.uploaded { background: #0a2010; }
+    .result-item.skipped  { background: #1c1c0a; }
+    .result-item.no_match { background: #200a0a; }
+    .result-item.failed   { background: #200a0a; }
+    .result-icon { font-size: 1.1rem; flex-shrink: 0; line-height: 1.4; }
     .result-file { font-weight: 600; color: #eee; }
-    .result-msg  { color: #aaa; font-size: 0.82rem; margin-top: 2px; }
+    .result-msg  { color: #888; font-size: 0.82rem; margin-top: 2px; }
 
     /* ── Product browser ── */
-    details { margin-top: 32px; }
+    details { border-top: 1px solid #1e1e1e; padding-top: 24px; }
     summary {
       cursor: pointer;
-      color: #888;
+      color: #666;
       font-size: 0.85rem;
       user-select: none;
-      margin-bottom: 12px;
+      margin-bottom: 14px;
+      list-style: none;
     }
-    summary:hover { color: #ccc; }
+    summary:hover { color: #aaa; }
+    .prod-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+    .prod-header span { font-size: 0.82rem; color: #555; }
+    .refresh-btn {
+      font-size: 0.78rem;
+      background: none;
+      border: 1px solid #2a2a2a;
+      border-radius: 6px;
+      color: #666;
+      padding: 4px 10px;
+      cursor: pointer;
+      margin-left: auto;
+    }
+    .refresh-btn:hover { border-color: #555; color: #aaa; }
     #product-list {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 6px;
+      gap: 5px;
     }
+    @media (max-width: 500px) { #product-list { grid-template-columns: 1fr; } }
     .prod-row {
       font-size: 0.8rem;
-      padding: 6px 10px;
-      background: #1a1a1a;
+      padding: 7px 10px;
+      background: #141414;
       border-radius: 6px;
       overflow: hidden;
       text-overflow: ellipsis;
       white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 7px;
     }
-    .prod-row.has-image { color: #666; }
-    .prod-row.no-image  { color: #ddd; }
-    .img-badge {
-      font-size: 0.7rem;
-      padding: 1px 5px;
-      border-radius: 4px;
-      margin-right: 6px;
+    .img-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      flex-shrink: 0;
     }
-    .img-badge.yes { background: #0d2b0d; color: #4caf50; }
-    .img-badge.no  { background: #2b0d0d; color: #f44336; }
-
-    .refresh-btn {
-      font-size: 0.8rem;
-      background: none;
-      border: 1px solid #333;
-      border-radius: 6px;
-      color: #888;
-      padding: 4px 10px;
-      cursor: pointer;
-      margin-left: 10px;
-    }
-    .refresh-btn:hover { border-color: #666; color: #ccc; }
+    .img-dot.yes { background: #3a7d3a; }
+    .img-dot.no  { background: #7d1a1a; }
+    .prod-title { overflow: hidden; text-overflow: ellipsis; }
+    .prod-row.has-image .prod-title { color: #555; }
+    .prod-row.no-image  .prod-title { color: #ccc; }
   </style>
 </head>
 <body>
 <div class="container">
   <h1>Beer Hatch — Photo Uploader</h1>
-  <p class="subtitle">Upload beer label photos directly to Shopify</p>
+  <p class="subtitle">Upload beer label photos to Shopify</p>
 
   <div class="naming-card">
-    <h2>⚠ File Naming — Important</h2>
-    <p>Photos must be named to match the beer in Shopify. You have two options:</p>
-    <p>
-      <span class="check">✓</span> <strong>Beer name only</strong> — <span class="pill">Gamma Ray.jpg</span><br>
-      <small style="color:#777;margin-left:22px">Matches the beer name part of the product title</small>
-    </p>
-    <p>
-      <span class="check">✓</span> <strong>Full product title</strong> — <span class="pill">Beavertown — Gamma Ray.jpg</span><br>
-      <small style="color:#777;margin-left:22px">Exact match — use this if two beers share the same name</small>
-    </p>
-    <p>
-      <span class="cross">✗</span> <strong>Don't use</strong> — <span class="pill">IMG_0042.jpg</span> or <span class="pill">photo1.jpg</span><br>
-      <small style="color:#777;margin-left:22px">Random filenames won't match anything and will be skipped</small>
-    </p>
-    <p style="margin-top:12px;font-size:0.82rem;color:#888">
-      Products that already have an image are skipped automatically. Scroll down to see which products are missing photos.
-    </p>
+    <h2>📋 How to name your photo files</h2>
+
+    <div class="rule">
+      <span class="rule-icon">✅</span>
+      <div class="rule-label">
+        <strong>Beer name only</strong> — <span class="pill">Gamma Ray.jpg</span>
+        <span class="rule-hint">Just the name of the beer, matching what's in Shopify. Easiest option.</span>
+      </div>
+    </div>
+
+    <div class="rule">
+      <span class="rule-icon">✅</span>
+      <div class="rule-label">
+        <strong>Full product title</strong> — <span class="pill">Beavertown — Gamma Ray.jpg</span>
+        <span class="rule-hint">Brewery name, then " — ", then beer name. Use this if two beers share the same name.</span>
+      </div>
+    </div>
+
+    <div class="rule">
+      <span class="rule-icon">❌</span>
+      <div class="rule-label">
+        <strong>Don't use</strong> — <span class="pill">IMG_0042.jpg</span> or <span class="pill">photo.jpg</span>
+        <span class="rule-hint">These won't match any product and will be skipped.</span>
+      </div>
+    </div>
+
+    <div class="rule" style="margin-top:14px;padding-top:14px;border-top:1px solid #ffffff15">
+      <span class="rule-icon">ℹ️</span>
+      <div class="rule-label" style="color:#777;font-size:0.85rem">
+        Products that already have a photo are skipped automatically. Scroll down to see which ones are still missing images.
+      </div>
+    </div>
   </div>
 
   <div class="drop-zone" id="drop-zone">
     <input type="file" id="file-input" multiple accept="image/jpeg,image/png,image/webp,image/gif" />
     <div class="drop-icon">📷</div>
     <h3>Drop photos here</h3>
-    <p>or click to browse — JPG, PNG, WEBP, GIF accepted</p>
+    <p>or click to browse &nbsp;·&nbsp; JPG, PNG, WEBP accepted</p>
   </div>
 
   <div id="file-list"></div>
+
   <button id="upload-btn">Upload Photos</button>
+
+  <div id="progress-wrap">
+    <div class="progress-bar-bg"><div id="progress-bar"></div></div>
+    <div id="progress-label"></div>
+  </div>
+
   <div id="results"></div>
 
   <details>
-    <summary>Browse products <button class="refresh-btn" id="refresh-btn" type="button">↺ Refresh</button></summary>
+    <summary>▾ Browse products — see which are missing photos</summary>
+    <div class="prod-header">
+      <span id="prod-count"></span>
+      <button class="refresh-btn" id="refresh-btn" type="button">↺ Refresh list</button>
+    </div>
     <div id="product-list">Loading…</div>
   </details>
 </div>
 
 <script>
-  const dropZone = document.getElementById('drop-zone');
-  const fileInput = document.getElementById('file-input');
-  const fileList = document.getElementById('file-list');
-  const uploadBtn = document.getElementById('upload-btn');
-  const resultsEl = document.getElementById('results');
+  const dropZone    = document.getElementById('drop-zone');
+  const fileInput   = document.getElementById('file-input');
+  const fileListEl  = document.getElementById('file-list');
+  const uploadBtn   = document.getElementById('upload-btn');
+  const progressWrap= document.getElementById('progress-wrap');
+  const progressBar = document.getElementById('progress-bar');
+  const progressLbl = document.getElementById('progress-label');
+  const resultsEl   = document.getElementById('results');
   const productList = document.getElementById('product-list');
-  const refreshBtn = document.getElementById('refresh-btn');
+  const prodCount   = document.getElementById('prod-count');
+  const refreshBtn  = document.getElementById('refresh-btn');
 
   let selectedFiles = [];
 
-  // ── Drag & drop ──
+  // ── Drag & drop ──────────────────────────────────────────────
   dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragging'); });
-  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragging'));
+  ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, () => dropZone.classList.remove('dragging')));
   dropZone.addEventListener('drop', e => {
     e.preventDefault();
-    dropZone.classList.remove('dragging');
     setFiles([...e.dataTransfer.files].filter(f => f.type.startsWith('image/')));
   });
   fileInput.addEventListener('change', () => setFiles([...fileInput.files]));
 
   function setFiles(files) {
     selectedFiles = files;
-    fileList.innerHTML = '';
+    fileListEl.innerHTML = '';
     resultsEl.innerHTML = '';
+    progressWrap.style.display = 'none';
 
     if (!files.length) { uploadBtn.style.display = 'none'; return; }
 
     files.forEach(f => {
       const div = document.createElement('div');
       div.className = 'file-item';
-      div.innerHTML = `<span class="file-name">📄 ${f.name}</span><span class="file-status">${(f.size / 1024).toFixed(0)} KB</span>`;
-      fileList.appendChild(div);
+      div.innerHTML = `<span class="file-name">📄 ${f.name}</span><span class="file-size">${(f.size / 1024).toFixed(0)} KB</span>`;
+      fileListEl.appendChild(div);
     });
 
     uploadBtn.style.display = 'block';
-    uploadBtn.textContent = `Upload ${files.length} photo${files.length > 1 ? 's' : ''}`;
+    uploadBtn.textContent = `Upload ${files.length} photo${files.length !== 1 ? 's' : ''}`;
   }
 
-  // ── Upload ──
-  uploadBtn.addEventListener('click', async () => {
-    if (!selectedFiles.length) return;
-    uploadBtn.disabled = true;
-    uploadBtn.textContent = 'Uploading…';
-    resultsEl.innerHTML = '';
-
-    const form = new FormData();
-    selectedFiles.forEach(f => form.append('photos', f));
-
-    try {
-      const res = await fetch('/upload', { method: 'POST', body: form });
-      const results = await res.json();
-      showResults(results);
-    } catch (err) {
-      resultsEl.innerHTML = `<div class="result-item failed"><span class="result-icon">❌</span><div><div class="result-file">Upload failed</div><div class="result-msg">${err.message}</div></div></div>`;
-    }
-
-    uploadBtn.disabled = false;
-    uploadBtn.textContent = `Upload ${selectedFiles.length} photo${selectedFiles.length > 1 ? 's' : ''}`;
-    loadProducts(); // refresh product list to reflect new images
-  });
-
-  function showResults(results) {
-    const icons = { uploaded: '✅', skipped: '⏭', no_match: '❓', failed: '❌' };
-    const labels = { uploaded: 'Uploaded', skipped: 'Skipped', no_match: 'No match', failed: 'Failed' };
-    results.forEach(r => {
-      const div = document.createElement('div');
-      div.className = `result-item ${r.status}`;
-      div.innerHTML = `
-        <span class="result-icon">${icons[r.status]}</span>
-        <div>
-          <div class="result-file">${r.file}</div>
-          <div class="result-msg">${labels[r.status]}${r.message ? ' — ' + r.message : ''}</div>
-        </div>`;
-      resultsEl.appendChild(div);
+  // ── Image compression via Canvas ─────────────────────────────
+  function compressImage(file, maxPx = 1500, quality = 0.85) {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        let { width, height } = img;
+        if (width > maxPx || height > maxPx) {
+          const ratio = Math.min(maxPx / width, maxPx / height);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = width; canvas.height = height;
+        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+        canvas.toBlob(blob => {
+          if (!blob) return reject(new Error('Compression failed'));
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result.split(',')[1]); // base64 only
+          reader.onerror = reject;
+          reader.readAsDataURL(blob);
+        }, 'image/jpeg', quality);
+      };
+      img.onerror = reject;
+      img.src = url;
     });
   }
 
-  // ── Product list ──
+  // ── Upload ───────────────────────────────────────────────────
+  uploadBtn.addEventListener('click', async () => {
+    if (!selectedFiles.length) return;
+
+    uploadBtn.disabled = true;
+    resultsEl.innerHTML = '';
+    progressWrap.style.display = 'block';
+
+    const icons   = { uploaded: '✅', skipped: '⏭', no_match: '❓', failed: '❌' };
+    const labels  = { uploaded: 'Uploaded', skipped: 'Skipped — already has a photo', no_match: 'No match — check the filename', failed: 'Failed' };
+
+    for (let i = 0; i < selectedFiles.length; i++) {
+      const file = selectedFiles[i];
+      progressBar.style.width = `${Math.round((i / selectedFiles.length) * 100)}%`;
+      progressLbl.textContent = `Uploading ${i + 1} of ${selectedFiles.length} — ${file.name}`;
+
+      let result;
+      try {
+        const attachment = await compressImage(file);
+        const res = await fetch('/.netlify/functions/upload', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, attachment }),
+        });
+        result = await res.json();
+      } catch (err) {
+        result = { status: 'failed', message: err.message };
+      }
+
+      const div = document.createElement('div');
+      div.className = `result-item ${result.status}`;
+      div.innerHTML = `
+        <span class="result-icon">${icons[result.status]}</span>
+        <div>
+          <div class="result-file">${file.name}</div>
+          <div class="result-msg">${labels[result.status]}${result.message ? ' — ' + result.message : ''}</div>
+        </div>`;
+      resultsEl.appendChild(div);
+    }
+
+    progressBar.style.width = '100%';
+    progressLbl.textContent = `Done — ${selectedFiles.length} photo${selectedFiles.length !== 1 ? 's' : ''} processed`;
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = `Upload ${selectedFiles.length} photo${selectedFiles.length !== 1 ? 's' : ''}`;
+    loadProducts();
+  });
+
+  // ── Product list ─────────────────────────────────────────────
   async function loadProducts() {
+    productList.textContent = 'Loading…';
     try {
-      const res = await fetch('/products');
+      const res = await fetch('/.netlify/functions/products');
       const products = await res.json();
+      const noImage = products.filter(p => !p.hasImage).length;
+      prodCount.textContent = `${products.length} products · ${noImage} missing photos`;
       productList.innerHTML = '';
-      const sorted = products.sort((a, b) => a.hasImage - b.hasImage || a.title.localeCompare(b.title));
+      const sorted = [...products].sort((a, b) => a.hasImage - b.hasImage || a.title.localeCompare(b.title));
       sorted.forEach(p => {
         const div = document.createElement('div');
         div.className = `prod-row ${p.hasImage ? 'has-image' : 'no-image'}`;
         div.title = p.title;
-        div.innerHTML = `<span class="img-badge ${p.hasImage ? 'yes' : 'no'}">${p.hasImage ? 'IMG' : 'NO IMG'}</span>${p.title}`;
+        div.innerHTML = `<span class="img-dot ${p.hasImage ? 'yes' : 'no'}"></span><span class="prod-title">${p.title}</span>`;
         productList.appendChild(div);
       });
-    } catch (e) {
+    } catch {
       productList.textContent = 'Could not load products.';
     }
   }
 
   refreshBtn.addEventListener('click', async () => {
     refreshBtn.textContent = '…';
-    await fetch('/refresh', { method: 'POST' });
     await loadProducts();
-    refreshBtn.textContent = '↺ Refresh';
+    refreshBtn.textContent = '↺ Refresh list';
   });
 
   loadProducts();
