@@ -1,10 +1,12 @@
 import axios from "axios";
+import nodemailer from "nodemailer";
 
 const shopifyToken = process.env.SHOPIFY_TOKEN;
-const resendApiKey = process.env.RESEND;
+const gmailUser = process.env.GMAIL_USER;
+const gmailPass = process.env.GMAIL_PASS;
 const shopifyBase = "https://beerhatch-com.myshopify.com/admin/api/2024-04";
 const shopifyHeaders = { "X-Shopify-Access-Token": shopifyToken };
-const SAUL_EMAIL = "info@beerhatch.com";
+const TO_EMAIL = "info@beerhatch.com";
 const STORE_HANDLE = "beerhatch-com";
 
 const extractError = (err) => {
@@ -79,25 +81,22 @@ const html = `
 </html>
 `;
 
-// Send via Resend
+// Send via Gmail SMTP
 try {
-  await axios.post(
-    "https://api.resend.com/emails",
-    {
-      from: "Beer Hatch <noreply@beerhatch.com>",
-      to: SAUL_EMAIL,
-      subject: `Beer Hatch — ${duplicates.length} Duplicate Product${duplicates.length > 1 ? "s" : ""} Found`,
-      html,
-    },
-    {
-      headers: {
-        "Authorization": `Bearer ${resendApiKey}`,
-        "Content-Type": "application/json",
-      },
-    }
-  );
-  console.log(`Duplicate report sent to ${SAUL_EMAIL} (${duplicates.length} group(s))`);
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: { user: gmailUser, pass: gmailPass },
+  });
+
+  await transporter.sendMail({
+    from: `Beer Hatch <${gmailUser}>`,
+    to: TO_EMAIL,
+    subject: `Beer Hatch — ${duplicates.length} Duplicate Product${duplicates.length > 1 ? "s" : ""} Found`,
+    html,
+  });
+
+  console.log(`Duplicate report sent to ${TO_EMAIL} (${duplicates.length} group(s))`);
 } catch (err) {
-  console.error(`Failed to send email: ${extractError(err)}`);
+  console.error(`Failed to send email: ${err.message}`);
   process.exit(1);
 }
