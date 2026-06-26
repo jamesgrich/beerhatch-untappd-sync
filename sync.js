@@ -114,7 +114,7 @@ for (const menu of menuIds) {
     ];
     if (item.ibu && item.ibu !== "0.0") tagParts.push(`IBU: ${item.ibu}`);
     if (item.calories) tagParts.push(`Calories: ${item.calories}`);
-    if (rating >= 3) tagParts.push(`Untappd: ${Math.round(rating)} Stars`);
+    if (rating >= 3) tagParts.push(`Untappd Rating: ${Math.round(rating)}`);
     const tags = tagParts.join(", ");
 
     const labelImage = item.label_image_hd || item.label_image || null;
