@@ -20,4 +20,4 @@ jobs:
       - run: node duplicate-report.js
         env:
           SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_TOKEN }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND: ${{ secrets.RESEND }}

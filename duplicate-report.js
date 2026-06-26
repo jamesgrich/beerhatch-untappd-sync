@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const shopifyToken = process.env.SHOPIFY_TOKEN;
-const resendApiKey = process.env.RESEND_API_KEY;
+const resendApiKey = process.env.RESEND;
 const shopifyBase = "https://beerhatch-com.myshopify.com/admin/api/2024-04";
 const shopifyHeaders = { "X-Shopify-Access-Token": shopifyToken };
 const SAUL_EMAIL = "info@beerhatch.com";
