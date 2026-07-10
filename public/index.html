@@ -348,16 +348,15 @@
         const canvas = document.createElement('canvas');
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
+        const isPng = file.type === 'image/png';
         canvas.toBlob(blob => {
           if (!blob) return reject(new Error('Compression failed'));
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result.split(',')[1]); // base64 only
           reader.onerror = reject;
           reader.readAsDataURL(blob);
-        }, 'image/jpeg', quality);
+        }, isPng ? 'image/png' : 'image/jpeg', isPng ? undefined : quality);
       };
       img.onerror = reject;
       img.src = url;
