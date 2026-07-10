@@ -349,14 +349,13 @@
         canvas.width = width; canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        const isPng = file.type === 'image/png';
         canvas.toBlob(blob => {
           if (!blob) return reject(new Error('Compression failed'));
           const reader = new FileReader();
           reader.onload = () => resolve(reader.result.split(',')[1]); // base64 only
           reader.onerror = reject;
           reader.readAsDataURL(blob);
-        }, isPng ? 'image/png' : 'image/jpeg', isPng ? undefined : quality);
+        }, 'image/jpeg', quality);
       };
       img.onerror = reject;
       img.src = url;
