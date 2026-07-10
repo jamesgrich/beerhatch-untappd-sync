@@ -39,7 +39,8 @@ for (const prod of products) {
 }
 
 for (const file of files) {
-  const nameWithoutExt = path.basename(file, path.extname(file)).trim();
+  const nameWithoutExt = path.basename(file, path.extname(file)).trim()
+    .replace(/ [–-] /g, ' — ');  // normalise hyphens/en-dashes to em-dash
   const nameLower = nameWithoutExt.toLowerCase();
   const product = byFullTitle.get(nameLower) || byBeerName.get(nameLower);
 

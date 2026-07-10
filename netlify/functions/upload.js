@@ -1,6 +1,11 @@
 import axios from "axios";
+import path from "path";
 
 const REPO = "jamesgrich/beerhatch-untappd-sync";
+
+function normalise(name) {
+  return name.replace(/ [–-] /g, ' — ').trim().toLowerCase();
+}
 
 export const handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405 };
@@ -16,6 +21,49 @@ export const handler = async (event) => {
     return { statusCode: 400, body: JSON.stringify({ error: "Missing filename or image data" }) };
   }
 
+  // Validate filename matches a known product before committing to GitHub
+  try {
+    const productsRes = await axios.get(
+      `https://raw.githubusercontent.com/${REPO}/main/public/products.json`
+    );
+    const products = productsRes.data || [];
+
+    const byFullTitle = new Map();
+    const byBeerName = new Map();
+    for (const prod of products) {
+      byFullTitle.set(normalise(prod.title), prod);
+      const dashIdx = prod.title.indexOf(" — ");
+      if (dashIdx !== -1) {
+        byBeerName.set(normalise(prod.title.slice(dashIdx + 3)), prod);
+      }
+    }
+
+    const nameWithoutExt = normalise(path.basename(filename, path.extname(filename)));
+    const product = byFullTitle.get(nameWithoutExt) || byBeerName.get(nameWithoutExt);
+
+    if (!product) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          status: "no_match",
+          message: "Filename doesn't match any product — rename it to the beer name (e.g. Mesa.png) and try again",
+        }),
+      };
+    }
+
+    if (product.hasImage) {
+      return {
+        statusCode: 200,
+        body: JSON.stringify({
+          status: "skipped",
+          message: `${product.title} already has a photo`,
+        }),
+      };
+    }
+  } catch {
+    // If product list can't be fetched, proceed anyway and let the workflow handle it
+  }
+
   const githubPat = process.env.GITHUB_PAT;
   const filePath = `pending-photos/${filename}`;
   const apiUrl = `https://api.github.com/repos/${REPO}/contents/${filePath}`;
@@ -24,7 +72,6 @@ export const handler = async (event) => {
     Accept: "application/vnd.github+json",
   };
 
-  // Check if file already exists (need its sha to overwrite)
   let sha;
   try {
     const existing = await axios.get(apiUrl, { headers });
