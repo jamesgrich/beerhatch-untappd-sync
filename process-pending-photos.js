@@ -53,17 +53,11 @@ for (const file of files) {
     continue;
   }
 
-  if ((product.images || []).length > 0) {
-    console.log(`SKIP: ${file} — ${product.title} already has an image`);
-    fs.unlinkSync(path.join(pendingDir, file));
-    continue;
-  }
-
   try {
     const attachment = fs.readFileSync(path.join(pendingDir, file)).toString("base64");
     await axios.post(
       `${shopifyBase}/products/${product.id}/images.json`,
-      { image: { attachment, filename: file } },
+      { image: { attachment, filename: file, position: 1 } },
       { headers: shopifyHeaders }
     );
     console.log(`UPLOADED: ${file} → ${product.title}`);

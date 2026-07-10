@@ -55,15 +55,6 @@ export const handler = async (event) => {
       };
     }
 
-    if (product.hasImage) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          status: "skipped",
-          message: `${product.title} already has a photo`,
-        }),
-      };
-    }
   } catch {
     // If product list can't be fetched, proceed anyway and let the workflow handle it
   }
