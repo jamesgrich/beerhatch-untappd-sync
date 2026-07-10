@@ -30,16 +30,20 @@ export const handler = async (event) => {
 
     const byFullTitle = new Map();
     const byBeerName = new Map();
+    const bySpaceTitle = new Map();
     for (const prod of products) {
       byFullTitle.set(normalise(prod.title), prod);
       const dashIdx = prod.title.indexOf(" — ");
       if (dashIdx !== -1) {
-        byBeerName.set(normalise(prod.title.slice(dashIdx + 3)), prod);
+        const brewery = prod.title.slice(0, dashIdx).trim();
+        const beer = prod.title.slice(dashIdx + 3).trim();
+        byBeerName.set(normalise(beer), prod);
+        bySpaceTitle.set(normalise(`${brewery} ${beer}`), prod);
       }
     }
 
     const nameWithoutExt = normalise(path.basename(filename, path.extname(filename)));
-    const product = byFullTitle.get(nameWithoutExt) || byBeerName.get(nameWithoutExt);
+    const product = byFullTitle.get(nameWithoutExt) || byBeerName.get(nameWithoutExt) || bySpaceTitle.get(nameWithoutExt);
 
     if (!product) {
       return {

@@ -217,15 +217,31 @@
       <span class="rule-icon">✅</span>
       <div class="rule-label">
         <strong>Beer name only</strong> — <span class="pill">Gamma Ray.jpg</span>
-        <span class="rule-hint">Just the name of the beer, matching what's in Shopify. Easiest option.</span>
+        <span class="rule-hint">Just the beer name. Easiest option — use this if the name is unique.</span>
       </div>
     </div>
 
     <div class="rule">
       <span class="rule-icon">✅</span>
       <div class="rule-label">
-        <strong>Full product title</strong> — <span class="pill">Beavertown — Gamma Ray.jpg</span>
-        <span class="rule-hint">Brewery name, then " — ", then beer name. Use this if two beers share the same name.</span>
+        <strong>Brewery and beer, no separator</strong> — <span class="pill">Beavertown Gamma Ray.jpg</span>
+        <span class="rule-hint">Brewery name followed by a space, then the beer name. No dash needed.</span>
+      </div>
+    </div>
+
+    <div class="rule">
+      <span class="rule-icon">✅</span>
+      <div class="rule-label">
+        <strong>Brewery and beer, with dash</strong> — <span class="pill">Beavertown - Gamma Ray.jpg</span>
+        <span class="rule-hint">A hyphen ( - ) or long dash ( — ) between brewery and beer name both work.</span>
+      </div>
+    </div>
+
+    <div class="rule">
+      <span class="rule-icon">ℹ️</span>
+      <div class="rule-label" style="color:#999">
+        <strong>Case doesn't matter</strong> — <span class="pill">beavertown gamma ray.jpg</span> works fine.
+        <span class="rule-hint">Uppercase, lowercase, or mixed — it all matches.</span>
       </div>
     </div>
 
@@ -233,7 +249,7 @@
       <span class="rule-icon">❌</span>
       <div class="rule-label">
         <strong>Don't use</strong> — <span class="pill">IMG_0042.jpg</span> or <span class="pill">photo.jpg</span>
-        <span class="rule-hint">These won't match any product and will be skipped.</span>
+        <span class="rule-hint">These won't match any product. You'll see an error straight away if a name doesn't match.</span>
       </div>
     </div>
 
