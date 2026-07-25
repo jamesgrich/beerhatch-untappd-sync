@@ -46,24 +46,31 @@ const setProductCategory = async (productId) => {
 // --- MAP EXISTING CATALOG ---
 console.log("Mapping existing catalog...");
 const skuMap = new Map(); // SKU → { productId, variantId, hasImage }
+const titleMap = new Map(); // normalized title → { productId, hasImage, variants: [{variantId, sku, option1}] }
 
 try {
   const res = await axios.get(
-    `${shopifyBase}/products.json?limit=250&fields=id,variants,images`,
+    `${shopifyBase}/products.json?limit=250&fields=id,title,variants,images`,
     { headers: shopifyHeaders }
   );
   for (const prod of (res.data.products || [])) {
+    const hasImage = (prod.images || []).length > 0;
+    titleMap.set(prod.title.trim().toLowerCase(), {
+      productId: prod.id,
+      hasImage,
+      variants: (prod.variants || []).map(v => ({ variantId: v.id, sku: v.sku, option1: v.option1 })),
+    });
     for (const variant of (prod.variants || [])) {
       if (variant.sku) {
         skuMap.set(variant.sku.trim(), {
           productId: prod.id,
           variantId: variant.id,
-          hasImage: (prod.images || []).length > 0,
+          hasImage,
         });
       }
     }
   }
-  console.log(`Mapped ${skuMap.size} existing variants.`);
+  console.log(`Mapped ${skuMap.size} existing variants across ${titleMap.size} products.`);
 } catch (err) {
   console.log(`Warning mapping catalog: ${extractError(err)}`);
 }
@@ -168,6 +175,57 @@ for (const menu of menuIds) {
         summary.failed_items++;
         console.log(`Failed update for ${formattedTitle}: ${extractError(err)}`);
       }
+    } else if (titleMap.has(formattedTitle.trim().toLowerCase())) {
+      // --- RETARGET existing product by title (Untappd re-issued a new item ID, e.g. after OOS delete/re-add) ---
+      const { productId, hasImage, variants } = titleMap.get(formattedTitle.trim().toLowerCase());
+      const existingVariant = variants.find(v => v.option1 === sizeOptionValue) || variants[0];
+      try {
+        const productPayload = {
+          product: {
+            id: productId,
+            title: formattedTitle,
+            body_html: bodyHtml,
+            vendor: brewery,
+            tags,
+            options: [{ name: "Size" }],
+          },
+        };
+        if (labelImage && !hasImage) {
+          productPayload.product.images = [{ src: labelImage }];
+        }
+
+        await axios.put(
+          `${shopifyBase}/products/${productId}.json`,
+          productPayload,
+          { headers: shopifyHeaders }
+        );
+
+        await sleep(300);
+
+        const variantPayload = {
+          variant: {
+            id: existingVariant.variantId,
+            sku: expectedSku,
+            barcode: item.upc || "",
+            option1: sizeOptionValue,
+          },
+        };
+        if (variantPrice !== undefined) variantPayload.variant.price = variantPrice;
+
+        await axios.put(
+          `${shopifyBase}/variants/${existingVariant.variantId}.json`,
+          variantPayload,
+          { headers: shopifyHeaders }
+        );
+
+        await setProductCategory(productId);
+        summary.existing_beers_updated++;
+        skuMap.set(expectedSku, { productId, variantId: existingVariant.variantId, hasImage });
+        console.log(`Retargeted: ${formattedTitle} | Size: ${sizeOptionValue} | SKU ${existingVariant.sku || "(none)"} → ${expectedSku}`);
+      } catch (err) {
+        summary.failed_items++;
+        console.log(`Failed retarget for ${formattedTitle}: ${extractError(err)}`);
+      }
     } else {
       // --- CREATE new product ---
       try {
@@ -211,6 +269,11 @@ for (const menu of menuIds) {
           productId: newProductId,
           variantId: res.data.product.variants[0].id,
           hasImage: !!labelImage,
+        });
+        titleMap.set(formattedTitle.trim().toLowerCase(), {
+          productId: newProductId,
+          hasImage: !!labelImage,
+          variants: [{ variantId: res.data.product.variants[0].id, sku: expectedSku, option1: sizeOptionValue }],
         });
       } catch (err) {
         summary.failed_items++;
