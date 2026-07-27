@@ -28,24 +28,26 @@ const res = await axios.get(
 );
 const products = res.data.products || [];
 
+const normSlash = (s) => s.replace(/\s*\/\s*/g, " - "); // "/" isn't valid in a filename
+
 const byFullTitle = new Map();
 const byBeerName = new Map();
 const bySpaceTitle = new Map();
 for (const prod of products) {
-  byFullTitle.set(prod.title.trim().toLowerCase(), prod);
+  byFullTitle.set(normSlash(prod.title.trim().toLowerCase()), prod);
   const dashIdx = prod.title.indexOf(" — ");
   if (dashIdx !== -1) {
     const brewery = prod.title.slice(0, dashIdx).trim();
     const beer = prod.title.slice(dashIdx + 3).trim();
-    byBeerName.set(beer.toLowerCase(), prod);
-    bySpaceTitle.set(`${brewery} ${beer}`.toLowerCase(), prod);
+    byBeerName.set(normSlash(beer.toLowerCase()), prod);
+    bySpaceTitle.set(normSlash(`${brewery} ${beer}`.toLowerCase()), prod);
   }
 }
 
 for (const file of files) {
   const nameWithoutExt = path.basename(file, path.extname(file)).trim()
     .replace(/ [–-] /g, ' — ');  // normalise hyphens/en-dashes to em-dash
-  const nameLower = nameWithoutExt.toLowerCase();
+  const nameLower = normSlash(nameWithoutExt.toLowerCase());
   const product = byFullTitle.get(nameLower) || byBeerName.get(nameLower) || bySpaceTitle.get(nameLower);
 
   if (!product) {
