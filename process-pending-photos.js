@@ -45,10 +45,19 @@ for (const prod of products) {
 }
 
 for (const file of files) {
-  const nameWithoutExt = path.basename(file, path.extname(file)).trim()
-    .replace(/ [–-] /g, ' — ');  // normalise hyphens/en-dashes to em-dash
-  const nameLower = normSlash(nameWithoutExt.toLowerCase());
-  const product = byFullTitle.get(nameLower) || byBeerName.get(nameLower) || bySpaceTitle.get(nameLower);
+  const nameWithoutExt = path.basename(file, path.extname(file)).trim();
+
+  // Try the filename as-is first, so titles with a legitimate internal " - "
+  // (e.g. "Ryedemption - Pale Ale") aren't clobbered by the dash normalisation below.
+  const exactLower = normSlash(nameWithoutExt.toLowerCase());
+  let product = byFullTitle.get(exactLower) || byBeerName.get(exactLower) || bySpaceTitle.get(exactLower);
+
+  if (!product) {
+    // Fallback for simple filenames using a plain hyphen instead of the brewery/beer em-dash separator
+    const dashNormalised = nameWithoutExt.replace(/ [–-] /g, ' — ');
+    const nameLower = normSlash(dashNormalised.toLowerCase());
+    product = byFullTitle.get(nameLower) || byBeerName.get(nameLower) || bySpaceTitle.get(nameLower);
+  }
 
   if (!product) {
     console.log(`NO MATCH: ${file} — rename to match a product title and re-upload`);
