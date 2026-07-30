@@ -10,7 +10,7 @@ const SEARCH = (process.env.SEARCH || "radler").toLowerCase();
 // --- Shopify: find matching products ---
 console.log(`\n=== SHOPIFY: products matching "${SEARCH}" ===`);
 const shopRes = await axios.get(
-  `${shopifyBase}/products.json?limit=250&fields=id,title,variants,created_at,updated_at`,
+  `${shopifyBase}/products.json?limit=250&fields=id,title,tags,variants,created_at,updated_at`,
   { headers: { "X-Shopify-Access-Token": shopifyToken } }
 );
 const matches = (shopRes.data.products || []).filter(p =>
@@ -22,6 +22,7 @@ if (!matches.length) {
   for (const p of matches) {
     console.log(`\nTitle:   ${p.title}`);
     console.log(`ID:      ${p.id}`);
+    console.log(`Tags:    ${p.tags}`);
     console.log(`Created: ${p.created_at}`);
     for (const v of p.variants) {
       console.log(`  Variant — SKU: ${v.sku || "(none)"}  |  Option: ${v.option1 || "(none)"}  |  Price: £${v.price}`);
