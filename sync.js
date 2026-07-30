@@ -43,6 +43,27 @@ const setProductCategory = async (productId) => {
   }
 };
 
+const setProductMetafields = async (productId, metafields) => {
+  try {
+    await axios.post(
+      `${shopifyBase}/graphql.json`,
+      {
+        query: `mutation($metafields: [MetafieldsSetInput!]!) {
+          metafieldsSet(metafields: $metafields) {
+            userErrors { field message }
+          }
+        }`,
+        variables: {
+          metafields: metafields.map(m => ({ ...m, ownerId: `gid://shopify/Product/${productId}` })),
+        },
+      },
+      { headers: shopifyHeaders }
+    );
+  } catch (err) {
+    console.log(`Warning: could not set metafields for ${productId}: ${extractError(err)}`);
+  }
+};
+
 // --- MAP EXISTING CATALOG ---
 console.log("Mapping existing catalog...");
 const skuMap = new Map(); // SKU → { productId, variantId, hasImage }
@@ -124,6 +145,19 @@ for (const menu of menuIds) {
     if (rating >= 3) tagParts.push(`Untappd Rating: ${Math.floor(rating)}`);
     const tags = tagParts.join(", ");
 
+    const metafields = [
+      { namespace: "custom", key: "abv", type: "number_decimal", value: String(parseFloat(item.abv) || 0) },
+    ];
+    if (item.ibu && item.ibu !== "0.0") {
+      metafields.push({ namespace: "custom", key: "ibu", type: "number_decimal", value: String(parseFloat(item.ibu)) });
+    }
+    if (item.calories) {
+      metafields.push({ namespace: "custom", key: "calories", type: "number_integer", value: String(Math.round(item.calories)) });
+    }
+    if (rating >= 3) {
+      metafields.push({ namespace: "custom", key: "untappd_rating", type: "number_integer", value: String(Math.floor(rating)) });
+    }
+
     const labelImage = item.label_image_hd || item.label_image || null;
 
     if (skuMap.has(expectedSku)) {
@@ -169,6 +203,7 @@ for (const menu of menuIds) {
         );
 
         await setProductCategory(productId);
+        await setProductMetafields(productId, metafields);
         summary.existing_beers_updated++;
         console.log(`Updated: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
       } catch (err) {
@@ -219,6 +254,7 @@ for (const menu of menuIds) {
         );
 
         await setProductCategory(productId);
+        await setProductMetafields(productId, metafields);
         summary.existing_beers_updated++;
         skuMap.set(expectedSku, { productId, variantId: existingVariant.variantId, hasImage });
         console.log(`Retargeted: ${formattedTitle} | Size: ${sizeOptionValue} | SKU ${existingVariant.sku || "(none)"} → ${expectedSku}`);
@@ -262,6 +298,7 @@ for (const menu of menuIds) {
 
         const newProductId = res.data.product.id;
         await setProductCategory(newProductId);
+        await setProductMetafields(newProductId, metafields);
         summary.new_beers_added++;
         console.log(`Created: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
 
