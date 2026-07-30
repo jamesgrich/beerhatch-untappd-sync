@@ -147,6 +147,7 @@ for (const menu of menuIds) {
 
     const metafields = [
       { namespace: "custom", key: "abv", type: "number_decimal", value: String(parseFloat(item.abv) || 0) },
+      { namespace: "custom", key: "style", type: "single_line_text_field", value: item.style || "Beer" },
     ];
     if (item.ibu && item.ibu !== "0.0") {
       metafields.push({ namespace: "custom", key: "ibu", type: "number_decimal", value: String(parseFloat(item.ibu)) });
