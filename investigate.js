@@ -50,7 +50,7 @@ if (!utMatches.length) {
     console.log(`Brewery:  ${i.brewery_name || i.brewery}`);
     console.log(`Item ID:  ${i.id}  (Shopify SKU would be: UT-${i.id})`);
     console.log(`Section:  ${i.sectionName}`);
-    console.log(`Style:    ${i.style}  |  ABV: ${i.abv}%`);
+    console.log(`Style:    ${i.style}  |  ABV: ${i.abv}%  |  Rating: ${i.rating}`);
     for (const c of (i.containers || [])) {
       console.log(`  Container — ${c.container_size?.name || "?"} | Price: £${c.price}`);
     }
