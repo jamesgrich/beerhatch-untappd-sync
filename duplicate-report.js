@@ -16,14 +16,17 @@ const extractError = (err) => {
   return err.message || "Unknown error";
 };
 
-// Fetch all products
+// Fetch all products (paginated — a single page tops out at 250)
 let products = [];
 try {
-  const res = await axios.get(
-    `${shopifyBase}/products.json?limit=250&fields=id,title,variants`,
-    { headers: shopifyHeaders }
-  );
-  products = res.data.products || [];
+  let url = `${shopifyBase}/products.json?limit=250&fields=id,title,variants`;
+  while (url) {
+    const res = await axios.get(url, { headers: shopifyHeaders });
+    products.push(...(res.data.products || []));
+    const link = res.headers["link"];
+    const match = link && link.match(/<([^>]+)>;\s*rel="next"/);
+    url = match ? match[1] : null;
+  }
 } catch (err) {
   console.error(`Failed to fetch products: ${extractError(err)}`);
   process.exit(1);
@@ -42,6 +45,11 @@ const duplicates = [...byTitle.values()].filter(group => group.length > 1);
 if (duplicates.length === 0) {
   console.log("No duplicate products found. No email sent.");
   process.exit(0);
+}
+
+console.log(`Found ${duplicates.length} duplicate group(s) across ${products.length} products:`);
+for (const group of duplicates) {
+  console.log(`  ${group.length}x  ${group[0].title}  [${group.map(p => p.id).join(", ")}]`);
 }
 
 // Build email HTML
