@@ -22,6 +22,22 @@ const extractError = (err) => {
   return err.message || "Unknown error";
 };
 
+// Shopify caps a single products.json response at 250 items; walk the
+// Link header's cursor-based pagination to fetch the entire catalog.
+const fetchAllProducts = async (fields) => {
+  const all = [];
+  let url = `${shopifyBase}/products.json?limit=250&fields=${fields}`;
+  while (url) {
+    const res = await axios.get(url, { headers: shopifyHeaders });
+    all.push(...(res.data.products || []));
+    const link = res.headers["link"];
+    const match = link && link.match(/<([^>]+)>;\s*rel="next"/);
+    url = match ? match[1] : null;
+    if (url) await sleep(500);
+  }
+  return all;
+};
+
 const BEER_CATEGORY_GID = "gid://shopify/TaxonomyCategory/fb-1-1-1";
 
 const setProductCategory = async (productId) => {
@@ -70,11 +86,8 @@ const skuMap = new Map(); // SKU → { productId, variantId, hasImage }
 const titleMap = new Map(); // normalized title → { productId, hasImage, variants: [{variantId, sku, option1}] }
 
 try {
-  const res = await axios.get(
-    `${shopifyBase}/products.json?limit=250&fields=id,title,variants,images`,
-    { headers: shopifyHeaders }
-  );
-  for (const prod of (res.data.products || [])) {
+  const allProducts = await fetchAllProducts("id,title,variants,images");
+  for (const prod of allProducts) {
     const hasImage = (prod.images || []).length > 0;
     titleMap.set(prod.title.trim().toLowerCase(), {
       productId: prod.id,
@@ -332,11 +345,8 @@ console.log(`Failed: ${summary.failed_items}`);
 // Write products.json for the Netlify photo uploader
 try {
   const { writeFileSync } = await import("fs");
-  const prodRes = await axios.get(
-    `${shopifyBase}/products.json?limit=250&fields=id,title,images`,
-    { headers: shopifyHeaders }
-  );
-  const productsJson = (prodRes.data.products || []).map(p => ({
+  const allProductsForExport = await fetchAllProducts("id,title,images");
+  const productsJson = allProductsForExport.map(p => ({
     id: p.id,
     title: p.title,
     hasImage: (p.images || []).length > 0,
