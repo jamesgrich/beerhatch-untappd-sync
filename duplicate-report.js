@@ -52,6 +52,12 @@ for (const group of duplicates) {
   console.log(`  ${group.length}x  ${group[0].title}  [${group.map(p => p.id).join(", ")}]`);
 }
 
+const dryRun = process.env.DRY_RUN === "true";
+if (dryRun) {
+  console.log("DRY_RUN set — skipping email.");
+  process.exit(0);
+}
+
 // Build email HTML
 const adminBase = `https://admin.shopify.com/store/${STORE_HANDLE}/products`;
 
