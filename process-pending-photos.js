@@ -22,11 +22,18 @@ if (!files.length) {
 
 console.log(`Found ${files.length} pending photo(s). Fetching Shopify products...`);
 
-const res = await axios.get(
-  `${shopifyBase}/products.json?limit=250&fields=id,title,images`,
-  { headers: shopifyHeaders }
-);
-const products = res.data.products || [];
+// Shopify caps a single products.json response at 250 items; walk the
+// Link header's cursor-based pagination to fetch the entire catalog.
+const products = [];
+let productsUrl = `${shopifyBase}/products.json?limit=250&fields=id,title,images`;
+while (productsUrl) {
+  const res = await axios.get(productsUrl, { headers: shopifyHeaders });
+  products.push(...(res.data.products || []));
+  const link = res.headers["link"];
+  const match = link && link.match(/<([^>]+)>;\s*rel="next"/);
+  productsUrl = match ? match[1] : null;
+  if (productsUrl) await sleep(500);
+}
 
 const normSlash = (s) => s.replace(/\s*\/\s*/g, " - "); // "/" isn't valid in a filename
 

@@ -9,11 +9,18 @@ const SEARCH = (process.env.SEARCH || "radler").toLowerCase();
 
 // --- Shopify: find matching products ---
 console.log(`\n=== SHOPIFY: products matching "${SEARCH}" ===`);
-const shopRes = await axios.get(
-  `${shopifyBase}/products.json?limit=250&fields=id,title,tags,variants,created_at,updated_at`,
-  { headers: { "X-Shopify-Access-Token": shopifyToken } }
-);
-const matches = (shopRes.data.products || []).filter(p =>
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const shopifyProducts = [];
+let shopUrl = `${shopifyBase}/products.json?limit=250&fields=id,title,tags,variants,created_at,updated_at`;
+while (shopUrl) {
+  const shopRes = await axios.get(shopUrl, { headers: { "X-Shopify-Access-Token": shopifyToken } });
+  shopifyProducts.push(...(shopRes.data.products || []));
+  const link = shopRes.headers["link"];
+  const linkMatch = link && link.match(/<([^>]+)>;\s*rel="next"/);
+  shopUrl = linkMatch ? linkMatch[1] : null;
+  if (shopUrl) await sleep(500);
+}
+const matches = shopifyProducts.filter(p =>
   p.title.toLowerCase().includes(SEARCH)
 );
 if (!matches.length) {

@@ -52,14 +52,18 @@ if (imageFiles.length === 0) {
 
 console.log(`Found ${imageFiles.length} image(s). Fetching Shopify products...`);
 
-// Fetch all products
+// Fetch all products (paginated — a single page tops out at 250)
 let products = [];
 try {
-  const res = await axios.get(
-    `${shopifyBase}/products.json?limit=250&fields=id,title,images`,
-    { headers: shopifyHeaders }
-  );
-  products = res.data.products || [];
+  let url = `${shopifyBase}/products.json?limit=250&fields=id,title,images`;
+  while (url) {
+    const res = await axios.get(url, { headers: shopifyHeaders });
+    products.push(...(res.data.products || []));
+    const link = res.headers["link"];
+    const match = link && link.match(/<([^>]+)>;\s*rel="next"/);
+    url = match ? match[1] : null;
+    if (url) await sleep(500);
+  }
 } catch (err) {
   console.error(`Failed to fetch products: ${extractError(err)}`);
   process.exit(1);
