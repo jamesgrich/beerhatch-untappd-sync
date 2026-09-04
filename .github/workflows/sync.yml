@@ -2,7 +2,7 @@ name: Untappd to Shopify Sync
 
 on:
   schedule:
-    - cron: "0 * * * *"  # every hour
+    - cron: "*/30 * * * *"  # every 30 minutes
   workflow_dispatch:
 
 jobs:
