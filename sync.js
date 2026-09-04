@@ -140,7 +140,8 @@ for (const menu of menuIds) {
     const formattedTitle = `${brewery} — ${beerName}`;
     const rating = parseFloat(item.rating) || 0;
     const bodyHtml = [
-      `<strong>Style:</strong> ${item.style || "Beer"} &nbsp;|&nbsp; <strong>ABV:</strong> ${item.abv || 0}%`,
+      `<strong>Style:</strong> ${item.style || "Beer"}`,
+      `<strong>ABV:</strong> ${item.abv || 0}%`,
       rating >= 3 ? `<strong>Untappd Rating:</strong> ${rating.toFixed(2)} ⭐` : "",
       item.description || "",
     ].filter(Boolean).join("<br/><br/>");
