@@ -2,7 +2,7 @@ name: Untappd to Shopify Sync
 
 on:
   schedule:
-    - cron: "*/30 * * * *"  # every 30 minutes
+    - cron: "7,37 * * * *"  # every 30 minutes, offset off :00/:30 to avoid GitHub's peak-load scheduling delays
   workflow_dispatch:
 
 jobs:
