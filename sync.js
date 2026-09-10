@@ -440,15 +440,16 @@ console.log(`Unchanged (skipped): ${summary.unchanged_items}`);
 console.log(`Failed: ${summary.failed_items}`);
 console.log(`Duration: ${elapsedMin.toFixed(1)} min`);
 
-// The trigger cadence is 5 min — a run taking most of that risks the next
-// trigger queuing up behind it instead of running on time, which compounds
-// every cycle if it keeps happening. 3 min leaves a real buffer.
-const DURATION_ALERT_MIN = 3;
+// Trigger cadence is 30 min — a run taking most of that risks the next trigger
+// queuing up behind it instead of running on time, which compounds every cycle
+// if it keeps happening. 10 min leaves a real buffer while still catching a
+// genuinely pathological run (normal worst-case is ~5-6 min).
+const DURATION_ALERT_MIN = 10;
 const FAILURE_ALERT_COUNT = 3;
 if (elapsedMin > DURATION_ALERT_MIN) {
   await sendAlert(
     "sync run is running long",
-    `This run took ${elapsedMin.toFixed(1)} min, out of a 5 min trigger interval — getting close to or over the ceiling where runs start queuing up behind each other instead of finishing before the next one fires.\n\nChecked: ${summary.total_items_checked} | Created: ${summary.new_beers_added} | Updated: ${summary.existing_beers_updated} | Unchanged: ${summary.unchanged_items} | Failed: ${summary.failed_items}\n\nWorth checking whether runs are backing up in the Actions history, and considering a longer interval if this keeps happening.`
+    `This run took ${elapsedMin.toFixed(1)} min, out of a 30 min trigger interval — getting close to or over the ceiling where runs start queuing up behind each other instead of finishing before the next one fires.\n\nChecked: ${summary.total_items_checked} | Created: ${summary.new_beers_added} | Updated: ${summary.existing_beers_updated} | Unchanged: ${summary.unchanged_items} | Failed: ${summary.failed_items}\n\nWorth checking whether runs are backing up in the Actions history.`
   );
 }
 if (summary.failed_items > FAILURE_ALERT_COUNT) {
