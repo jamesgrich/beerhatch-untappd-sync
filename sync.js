@@ -66,19 +66,26 @@ const setProductCategory = async (productId) => {
 // raw string comparison against our fixed generation order always mismatched.
 const normalizeTags = (tags) => (tags || "").split(",").map(t => t.trim()).filter(Boolean).sort().join(",");
 
-const needsUpdate = (current, next) => {
-  const reasons = [];
-  if (current.title !== next.title) reasons.push(`title: ${JSON.stringify(current.title)} vs ${JSON.stringify(next.title)}`);
-  if (current.body_html !== next.body_html) reasons.push(`body_html: ${JSON.stringify(current.body_html)} vs ${JSON.stringify(next.body_html)}`);
-  if (current.vendor !== next.vendor) reasons.push(`vendor: ${JSON.stringify(current.vendor)} vs ${JSON.stringify(next.vendor)}`);
-  if (normalizeTags(current.tags) !== normalizeTags(next.tags)) reasons.push(`tags: ${JSON.stringify(current.tags)} vs ${JSON.stringify(next.tags)}`);
-  if (current.option1 !== next.option1) reasons.push(`option1: ${JSON.stringify(current.option1)} vs ${JSON.stringify(next.option1)}`);
-  if (current.barcode !== next.barcode) reasons.push(`barcode: ${JSON.stringify(current.barcode)} vs ${JSON.stringify(next.barcode)}`);
-  if (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) reasons.push(`price: ${current.price} vs ${next.price}`);
-  if (next.needsImage) reasons.push("needsImage");
-  if (reasons.length) console.log(`DIFF DEBUG [${next.title}]: ${reasons.join(" | ")}`);
-  return reasons.length > 0;
-};
+// Shopify decodes HTML entities in body_html on save (&amp; -> &, etc.) — Untappd's
+// raw descriptions contain literal &amp;, so generate the already-decoded form to
+// match what actually ends up stored, same as the <br> normalization above.
+const decodeHtmlEntities = (str) => (str || "")
+  .replace(/&amp;/g, "&")
+  .replace(/&lt;/g, "<")
+  .replace(/&gt;/g, ">")
+  .replace(/&quot;/g, "\"")
+  .replace(/&#0?39;|&apos;/g, "'");
+
+const needsUpdate = (current, next) => (
+  current.title !== next.title ||
+  current.body_html !== next.body_html ||
+  current.vendor !== next.vendor ||
+  normalizeTags(current.tags) !== normalizeTags(next.tags) ||
+  current.option1 !== next.option1 ||
+  current.barcode !== next.barcode ||
+  (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) ||
+  next.needsImage
+);
 
 const setProductMetafields = async (productId, metafields) => {
   try {
@@ -174,12 +181,12 @@ for (const menu of menuIds) {
     const beerName = (item.name || "Unknown Beer").trim();
     const formattedTitle = `${brewery} — ${beerName}`;
     const rating = parseFloat(item.rating) || 0;
-    const bodyHtml = [
+    const bodyHtml = decodeHtmlEntities([
       `<strong>Style:</strong> ${item.style || "Beer"}`,
       `<strong>ABV:</strong> ${item.abv || 0}%`,
       rating >= 3 ? `<strong>Untappd Rating:</strong> ${rating.toFixed(2)} ⭐` : "",
       item.description || "",
-    ].filter(Boolean).join("<br><br>"); // Shopify strips the self-closing slash on save — match its stored form directly
+    ].filter(Boolean).join("<br><br>")); // matches Shopify's stored form: no self-closing slash, entities decoded
 
     const container = (item.containers || [])[0];
     const sizeOptionValue = container?.container_size?.name || menu.label;
