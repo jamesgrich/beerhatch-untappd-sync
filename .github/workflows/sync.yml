@@ -1,21 +1,20 @@
 name: Untappd to Shopify Sync
 
 run-name: >-
-  Sync (${{ github.event_name == 'schedule' && 'GH schedule fallback' || inputs.source == 'netlify' && 'Netlify scheduler' || 'manual' }})
+  Sync (${{ inputs.source == 'netlify' && 'Netlify scheduler' || inputs.source == 'cron-job.org' && 'cron-job.org scheduler' || 'manual' }})
 
 on:
-  # Netlify's scheduled function (netlify/functions/trigger-sync.js) is the primary
-  # driver now, firing workflow_dispatch every 30 min — GH's own `schedule:` trigger
-  # got delayed by hours on this repo regardless of cron offset. This schedule is a
-  # TEMPORARY safety net (2hr floor, not 30min) in case the Netlify trigger turns out
-  # not to fire at all — remove once that's confirmed working, to avoid doubling
-  # collision risk on the commit step below for no benefit.
-  schedule:
-    - cron: "17 */2 * * *"
+  # Two independent, offset external schedulers drive this via workflow_dispatch —
+  # Netlify (:00/:10/:20/:30/:40/:50) and cron-job.org (:05/:15/:25/:35/:45/:55) —
+  # interleaved for a combined ~5min effective cadence with no overlap. Either one
+  # alone degrades gracefully to a 10min cadence rather than silent total failure.
+  # GH's own `schedule:` trigger was removed entirely: it got delayed by hours on
+  # this repo regardless of cron offset, so it added no real reliability and only
+  # increased collision risk on the commit step below.
   workflow_dispatch:
     inputs:
       source:
-        description: "Who triggered this (netlify / left blank for manual)"
+        description: "Who triggered this (netlify / cron-job.org / left blank for manual)"
         required: false
         default: "manual"
 
@@ -48,7 +47,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add public/products.json
+          git add public/products.json public/sync-state.json
           if git diff --staged --quiet; then exit 0; fi
           git commit -m "chore: update products.json [skip ci]"
           for i in 1 2 3 4 5; do

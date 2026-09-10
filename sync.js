@@ -1,5 +1,8 @@
 import axios from "axios";
 import nodemailer from "nodemailer";
+import { readFileSync, writeFileSync } from "fs";
+
+const STATE_FILE = "public/sync-state.json";
 
 const runStart = Date.now();
 const utEmail = process.env.UT_EMAIL;
@@ -118,6 +121,7 @@ const needsUpdate = (current, next) => (
   current.option1 !== next.option1 ||
   current.barcode !== next.barcode ||
   (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) ||
+  current.status !== "active" || // reactivate if this item was previously archived
   next.needsImage
 );
 
@@ -147,10 +151,21 @@ console.log("Mapping existing catalog...");
 const skuMap = new Map(); // SKU → { productId, variantId, hasImage }
 const titleMap = new Map(); // normalized title → { productId, hasImage, variants: [{variantId, sku, option1}] }
 const exportPatches = new Map(); // productId → fresh {id,title,hasImage} for anything created/updated this run
+const seenSkus = new Set(); // every UT-<id> SKU actually present on this run's Untappd menu
+
+// Missing-streak state, persisted across runs — a beer needs to be missing from
+// Untappd's menu on 2 consecutive runs before we archive it, so one transient
+// Untappd glitch can't accidentally hide something still actually on tap.
+let missState = {};
+try {
+  missState = JSON.parse(readFileSync(STATE_FILE, "utf8"));
+} catch {
+  // No state file yet, or unreadable — start fresh
+}
 
 let allProducts = [];
 try {
-  allProducts = await fetchAllProducts("id,title,body_html,vendor,tags,variants,images");
+  allProducts = await fetchAllProducts("id,title,body_html,vendor,tags,variants,images,status");
   for (const prod of allProducts) {
     const hasImage = (prod.images || []).length > 0;
     const productFields = {
@@ -158,6 +173,7 @@ try {
       body_html: prod.body_html || "",
       vendor: prod.vendor || "",
       tags: prod.tags || "",
+      status: prod.status || "active",
     };
     titleMap.set(prod.title.trim().toLowerCase(), {
       productId: prod.id,
@@ -191,6 +207,7 @@ const summary = {
   new_beers_added: 0,
   existing_beers_updated: 0,
   unchanged_items: 0,
+  archived_items: 0,
   failed_items: 0,
 };
 
@@ -213,6 +230,7 @@ for (const menu of menuIds) {
   for (const item of sections.flatMap(s => s.items || [])) {
     summary.total_items_checked++;
     const expectedSku = `UT-${item.id}`;
+    seenSkus.add(expectedSku);
     const brewery = (item.brewery_name || item.brewery || "Unknown Brewery").trim();
     const beerName = (item.name || "Unknown Beer").trim();
     const formattedTitle = `${brewery} — ${beerName}`;
@@ -279,6 +297,7 @@ for (const menu of menuIds) {
             body_html: bodyHtml,
             vendor: brewery,
             tags,
+            status: "active", // reactivate if this was archived (item back on Untappd's menu)
             options: [{ name: "Size" }],
           },
         };
@@ -333,6 +352,7 @@ for (const menu of menuIds) {
             body_html: bodyHtml,
             vendor: brewery,
             tags,
+            status: "active", // reactivate if this was archived (item back on Untappd's menu)
             options: [{ name: "Size" }],
           },
         };
@@ -434,6 +454,48 @@ for (const menu of menuIds) {
   }
 }
 
+// --- ARCHIVE ITEMS NO LONGER ON UNTAPPD'S MENU ---
+// Guard against a total Untappd fetch failure: if we checked zero items, we have
+// no idea what's actually on the menu, so archiving anything based on "not seen"
+// would be wrong — likely a mass false-positive wipe. Skip archival entirely.
+if (summary.total_items_checked > 0) {
+  const newMissState = {};
+  const archivedThisRun = new Set();
+
+  for (const [sku, cached] of skuMap) {
+    if (!sku.startsWith("UT-") || seenSkus.has(sku)) continue; // not ours, or still present
+    const missCount = (missState[sku] || 0) + 1;
+    if (missCount < 2) {
+      newMissState[sku] = missCount; // first miss — wait for a second before archiving
+      continue;
+    }
+    if (cached.status === "archived" || archivedThisRun.has(cached.productId)) continue; // already handled
+    try {
+      await axios.put(
+        `${shopifyBase}/products/${cached.productId}.json`,
+        { product: { id: cached.productId, status: "archived" } },
+        { headers: shopifyHeaders }
+      );
+      archivedThisRun.add(cached.productId);
+      summary.archived_items++;
+      exportPatches.set(cached.productId, { id: cached.productId, title: cached.title, hasImage: cached.hasImage });
+      console.log(`Archived: ${cached.title} (missing from Untappd's menu for 2+ runs)`);
+    } catch (err) {
+      console.log(`Failed to archive ${cached.title}: ${extractError(err)}`);
+    }
+    // Not carried into newMissState — either archived now, or already was, so no
+    // need to keep tracking a miss-streak for it going forward.
+  }
+
+  try {
+    writeFileSync(STATE_FILE, JSON.stringify(newMissState));
+  } catch (err) {
+    console.log(`Warning: could not write sync-state.json: ${err.message}`);
+  }
+} else {
+  console.log("Skipping archive pass — 0 items checked this run (likely an Untappd fetch failure).");
+}
+
 const elapsedMin = (Date.now() - runStart) / 60000;
 
 console.log("\n--- Sync complete ---");
@@ -441,6 +503,7 @@ console.log(`Total checked: ${summary.total_items_checked}`);
 console.log(`Created: ${summary.new_beers_added}`);
 console.log(`Updated: ${summary.existing_beers_updated}`);
 console.log(`Unchanged (skipped): ${summary.unchanged_items}`);
+console.log(`Archived: ${summary.archived_items}`);
 console.log(`Failed: ${summary.failed_items}`);
 console.log(`Duration: ${elapsedMin.toFixed(1)} min`);
 
@@ -466,7 +529,6 @@ if (summary.failed_items > FAILURE_ALERT_COUNT) {
 // fetched at the top instead of re-fetching everything again — patched with
 // anything created or updated this run so titles/images stay current.
 try {
-  const { writeFileSync } = await import("fs");
   const merged = new Map();
   for (const p of allProducts) {
     merged.set(p.id, { id: p.id, title: p.title, hasImage: (p.images || []).length > 0 });
