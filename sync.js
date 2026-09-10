@@ -62,16 +62,27 @@ const setProductCategory = async (productId) => {
 // Only the fields we actually diff against — if none of these differ from what
 // Shopify already has, the item hasn't meaningfully changed on Untappd and every
 // downstream write (product PUT, variant PUT, category, metafields) can be skipped.
-const needsUpdate = (current, next) => (
-  current.title !== next.title ||
-  current.body_html !== next.body_html ||
-  current.vendor !== next.vendor ||
-  current.tags !== next.tags ||
-  current.option1 !== next.option1 ||
-  current.barcode !== next.barcode ||
-  (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) ||
-  next.needsImage
-);
+const diffReasons = (current, next) => {
+  const reasons = [];
+  if (current.title !== next.title) reasons.push(`title: ${JSON.stringify(current.title)} vs ${JSON.stringify(next.title)}`);
+  if (current.body_html !== next.body_html) reasons.push(`body_html: ${JSON.stringify(current.body_html)} vs ${JSON.stringify(next.body_html)}`);
+  if (current.vendor !== next.vendor) reasons.push(`vendor: ${JSON.stringify(current.vendor)} vs ${JSON.stringify(next.vendor)}`);
+  if (current.tags !== next.tags) reasons.push(`tags: ${JSON.stringify(current.tags)} vs ${JSON.stringify(next.tags)}`);
+  if (current.option1 !== next.option1) reasons.push(`option1: ${JSON.stringify(current.option1)} vs ${JSON.stringify(next.option1)}`);
+  if (current.barcode !== next.barcode) reasons.push(`barcode: ${JSON.stringify(current.barcode)} vs ${JSON.stringify(next.barcode)}`);
+  if (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) reasons.push(`price: ${current.price} vs ${next.price}`);
+  if (next.needsImage) reasons.push("needsImage");
+  return reasons;
+};
+let debugLogsRemaining = 5;
+const needsUpdate = (current, next) => {
+  const reasons = diffReasons(current, next);
+  if (reasons.length && debugLogsRemaining > 0) {
+    debugLogsRemaining--;
+    console.log(`DIFF DEBUG [${next.title}]: ${reasons.join(" | ")}`);
+  }
+  return reasons.length > 0;
+};
 
 const setProductMetafields = async (productId, metafields) => {
   try {
