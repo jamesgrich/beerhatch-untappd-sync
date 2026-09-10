@@ -1,8 +1,13 @@
 import axios from "axios";
+import nodemailer from "nodemailer";
 
+const runStart = Date.now();
 const utEmail = process.env.UT_EMAIL;
 const utToken = process.env.UT_TOKEN;
 const shopifyToken = process.env.SHOPIFY_TOKEN;
+const gmailUser = process.env.GMAIL_USER;
+const gmailPass = process.env.GMAIL_PASS;
+const ALERT_EMAIL = "jamesrichardson15@gmail.com"; // ops alerts go to James, not Saul — this is diagnostic, not customer-facing
 const tokenBuffer = Buffer.from(`${utEmail}:${utToken}`).toString("base64");
 const shopifyBase = "https://beerhatch-com.myshopify.com/admin/api/2024-04";
 const menuIds = [
@@ -20,6 +25,32 @@ const extractError = (err) => {
   if (body?.errors) return JSON.stringify(body.errors);
   if (body?.error) return body.error;
   return err.message || "Unknown error";
+};
+
+// The sync now runs every 5 min — this catches the two ways that cadence could
+// start "falling over itself": a run taking long enough to risk backing up the
+// queue behind it, or a spike in write failures (often a rate-limit symptom of
+// running too often). Never throws — an alert failing shouldn't fail the sync.
+const sendAlert = async (subject, message) => {
+  if (!gmailUser || !gmailPass) {
+    console.log(`Warning: GMAIL_USER/GMAIL_PASS not set — skipping alert: ${subject}`);
+    return;
+  }
+  try {
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: { user: gmailUser, pass: gmailPass },
+    });
+    await transporter.sendMail({
+      from: `Beer Hatch Sync <${gmailUser}>`,
+      to: ALERT_EMAIL,
+      subject: `Beer Hatch Sync — ${subject}`,
+      text: message,
+    });
+    console.log(`Alert sent: ${subject}`);
+  } catch (err) {
+    console.log(`Warning: could not send alert email: ${err.message}`);
+  }
 };
 
 // Shopify caps a single products.json response at 250 items; walk the
@@ -112,9 +143,11 @@ const setProductMetafields = async (productId, metafields) => {
 console.log("Mapping existing catalog...");
 const skuMap = new Map(); // SKU → { productId, variantId, hasImage }
 const titleMap = new Map(); // normalized title → { productId, hasImage, variants: [{variantId, sku, option1}] }
+const exportPatches = new Map(); // productId → fresh {id,title,hasImage} for anything created/updated this run
 
+let allProducts = [];
 try {
-  const allProducts = await fetchAllProducts("id,title,body_html,vendor,tags,variants,images");
+  allProducts = await fetchAllProducts("id,title,body_html,vendor,tags,variants,images");
   for (const prod of allProducts) {
     const hasImage = (prod.images || []).length > 0;
     const productFields = {
@@ -272,6 +305,7 @@ for (const menu of menuIds) {
 
         await setProductMetafields(productId, metafields);
         summary.existing_beers_updated++;
+        exportPatches.set(productId, { id: productId, title: formattedTitle, hasImage: hasImage || !!labelImage });
         console.log(`Updated: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
       } catch (err) {
         summary.failed_items++;
@@ -326,6 +360,7 @@ for (const menu of menuIds) {
         await setProductMetafields(productId, metafields);
         summary.existing_beers_updated++;
         skuMap.set(expectedSku, { productId, variantId: existingVariant.variantId, hasImage });
+        exportPatches.set(productId, { id: productId, title: formattedTitle, hasImage: hasImage || !!labelImage });
         console.log(`Retargeted: ${formattedTitle} | Size: ${sizeOptionValue} | SKU ${existingVariant.sku || "(none)"} → ${expectedSku}`);
       } catch (err) {
         summary.failed_items++;
@@ -369,6 +404,7 @@ for (const menu of menuIds) {
         await setProductCategory(newProductId);
         await setProductMetafields(newProductId, metafields);
         summary.new_beers_added++;
+        exportPatches.set(newProductId, { id: newProductId, title: formattedTitle, hasImage: !!labelImage });
         console.log(`Created: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
 
         skuMap.set(expectedSku, {
@@ -391,22 +427,47 @@ for (const menu of menuIds) {
   }
 }
 
+const elapsedMin = (Date.now() - runStart) / 60000;
+
 console.log("\n--- Sync complete ---");
 console.log(`Total checked: ${summary.total_items_checked}`);
 console.log(`Created: ${summary.new_beers_added}`);
 console.log(`Updated: ${summary.existing_beers_updated}`);
 console.log(`Unchanged (skipped): ${summary.unchanged_items}`);
 console.log(`Failed: ${summary.failed_items}`);
+console.log(`Duration: ${elapsedMin.toFixed(1)} min`);
 
-// Write products.json for the Netlify photo uploader
+// The trigger cadence is 5 min — a run taking most of that risks the next
+// trigger queuing up behind it instead of running on time, which compounds
+// every cycle if it keeps happening. 3 min leaves a real buffer.
+const DURATION_ALERT_MIN = 3;
+const FAILURE_ALERT_COUNT = 3;
+if (elapsedMin > DURATION_ALERT_MIN) {
+  await sendAlert(
+    "sync run is running long",
+    `This run took ${elapsedMin.toFixed(1)} min, out of a 5 min trigger interval — getting close to or over the ceiling where runs start queuing up behind each other instead of finishing before the next one fires.\n\nChecked: ${summary.total_items_checked} | Created: ${summary.new_beers_added} | Updated: ${summary.existing_beers_updated} | Unchanged: ${summary.unchanged_items} | Failed: ${summary.failed_items}\n\nWorth checking whether runs are backing up in the Actions history, and considering a longer interval if this keeps happening.`
+  );
+}
+if (summary.failed_items > FAILURE_ALERT_COUNT) {
+  await sendAlert(
+    `${summary.failed_items} item(s) failed to sync`,
+    `${summary.failed_items} of ${summary.total_items_checked} items failed this run — check the Action log for specifics. A spike like this can be a sign of Shopify API rate-limiting, which becomes more likely the more often the sync runs.\n\nChecked: ${summary.total_items_checked} | Created: ${summary.new_beers_added} | Updated: ${summary.existing_beers_updated} | Unchanged: ${summary.unchanged_items} | Duration: ${elapsedMin.toFixed(1)} min`
+  );
+}
+
+// Write products.json for the Netlify photo uploader. Reuses the catalog already
+// fetched at the top instead of re-fetching everything again — patched with
+// anything created or updated this run so titles/images stay current.
 try {
   const { writeFileSync } = await import("fs");
-  const allProductsForExport = await fetchAllProducts("id,title,images");
-  const productsJson = allProductsForExport.map(p => ({
-    id: p.id,
-    title: p.title,
-    hasImage: (p.images || []).length > 0,
-  }));
+  const merged = new Map();
+  for (const p of allProducts) {
+    merged.set(p.id, { id: p.id, title: p.title, hasImage: (p.images || []).length > 0 });
+  }
+  for (const [id, patch] of exportPatches) {
+    merged.set(id, patch);
+  }
+  const productsJson = [...merged.values()];
   writeFileSync("public/products.json", JSON.stringify(productsJson));
   console.log(`Wrote public/products.json (${productsJson.length} products)`);
 } catch (err) {

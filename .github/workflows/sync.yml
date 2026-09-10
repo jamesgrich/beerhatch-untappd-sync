@@ -41,6 +41,8 @@ jobs:
           UT_EMAIL: ${{ secrets.UT_EMAIL }}
           UT_TOKEN: ${{ secrets.UT_TOKEN }}
           SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_TOKEN }}
+          GMAIL_USER: ${{ secrets.GMAIL_USER }}
+          GMAIL_PASS: ${{ secrets.GMAIL_PASS }}
 
       - name: Commit updated products.json
         run: |
