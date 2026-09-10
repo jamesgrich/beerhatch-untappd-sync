@@ -107,19 +107,19 @@ const decodeHtmlEntities = (str) => (str || "")
   .replace(/&quot;/g, "\"")
   .replace(/&#0?39;|&apos;/g, "'");
 
-const needsUpdate = (current, next) => {
-  const reasons = [];
-  if (current.title !== next.title) reasons.push(`title: ${JSON.stringify(current.title)} vs ${JSON.stringify(next.title)}`);
-  if (current.body_html !== next.body_html) reasons.push(`body_html: ${JSON.stringify(current.body_html)} vs ${JSON.stringify(next.body_html)}`);
-  if (current.vendor !== next.vendor) reasons.push(`vendor: ${JSON.stringify(current.vendor)} vs ${JSON.stringify(next.vendor)}`);
-  if (normalizeTags(current.tags) !== normalizeTags(next.tags)) reasons.push(`tags: ${JSON.stringify(current.tags)} vs ${JSON.stringify(next.tags)}`);
-  if (current.option1 !== next.option1) reasons.push(`option1: ${JSON.stringify(current.option1)} vs ${JSON.stringify(next.option1)}`);
-  if (current.barcode !== next.barcode) reasons.push(`barcode: ${JSON.stringify(current.barcode)} vs ${JSON.stringify(next.barcode)}`);
-  if (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) reasons.push(`price: ${current.price} vs ${next.price}`);
-  if (next.needsImage) reasons.push("needsImage");
-  if (reasons.length) console.log(`DIFF DEBUG [${next.title}]: ${reasons.join(" | ")}`);
-  return reasons.length > 0;
-};
+// body_html is compared with entities decoded on BOTH sides (not changing what's
+// sent, only what's compared) — whichever raw form either side happens to use,
+// decoding both always converges correctly.
+const needsUpdate = (current, next) => (
+  current.title !== next.title ||
+  decodeHtmlEntities(current.body_html) !== decodeHtmlEntities(next.body_html) ||
+  current.vendor !== next.vendor ||
+  normalizeTags(current.tags) !== normalizeTags(next.tags) ||
+  current.option1 !== next.option1 ||
+  current.barcode !== next.barcode ||
+  (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) ||
+  next.needsImage
+);
 
 const setProductMetafields = async (productId, metafields) => {
   try {
@@ -217,12 +217,16 @@ for (const menu of menuIds) {
     const beerName = (item.name || "Unknown Beer").trim();
     const formattedTitle = `${brewery} — ${beerName}`;
     const rating = parseFloat(item.rating) || 0;
-    const bodyHtml = decodeHtmlEntities([
+    // NOT entity-decoded here — a raw "&" apparently doesn't stick when sent to
+    // Shopify's API (unconfirmed why; possibly rejected/ignored as invalid HTML),
+    // so keep sending &amp; exactly as this has always worked. Entities are only
+    // decoded for the diff *comparison* below, not for what actually gets written.
+    const bodyHtml = [
       `<strong>Style:</strong> ${item.style || "Beer"}`,
       `<strong>ABV:</strong> ${item.abv || 0}%`,
       rating >= 3 ? `<strong>Untappd Rating:</strong> ${rating.toFixed(2)} ⭐` : "",
       item.description || "",
-    ].filter(Boolean).join("<br><br>")); // matches Shopify's stored form: no self-closing slash, entities decoded
+    ].filter(Boolean).join("<br><br>"); // Shopify strips the self-closing slash on <br/> on save — confirmed via live data
 
     const container = (item.containers || [])[0];
     const sizeOptionValue = container?.container_size?.name || menu.label;
@@ -440,16 +444,15 @@ console.log(`Unchanged (skipped): ${summary.unchanged_items}`);
 console.log(`Failed: ${summary.failed_items}`);
 console.log(`Duration: ${elapsedMin.toFixed(1)} min`);
 
-// Trigger cadence is 30 min — a run taking most of that risks the next trigger
+// Trigger cadence is 5 min — a run taking most of that risks the next trigger
 // queuing up behind it instead of running on time, which compounds every cycle
-// if it keeps happening. 10 min leaves a real buffer while still catching a
-// genuinely pathological run (normal worst-case is ~5-6 min).
-const DURATION_ALERT_MIN = 10;
+// if it keeps happening. 3 min leaves a real buffer.
+const DURATION_ALERT_MIN = 3;
 const FAILURE_ALERT_COUNT = 3;
 if (elapsedMin > DURATION_ALERT_MIN) {
   await sendAlert(
     "sync run is running long",
-    `This run took ${elapsedMin.toFixed(1)} min, out of a 30 min trigger interval — getting close to or over the ceiling where runs start queuing up behind each other instead of finishing before the next one fires.\n\nChecked: ${summary.total_items_checked} | Created: ${summary.new_beers_added} | Updated: ${summary.existing_beers_updated} | Unchanged: ${summary.unchanged_items} | Failed: ${summary.failed_items}\n\nWorth checking whether runs are backing up in the Actions history.`
+    `This run took ${elapsedMin.toFixed(1)} min, out of a 5 min trigger interval — getting close to or over the ceiling where runs start queuing up behind each other instead of finishing before the next one fires.\n\nChecked: ${summary.total_items_checked} | Created: ${summary.new_beers_added} | Updated: ${summary.existing_beers_updated} | Unchanged: ${summary.unchanged_items} | Failed: ${summary.failed_items}\n\nWorth checking whether runs are backing up in the Actions history, and considering a longer interval if this keeps happening.`
   );
 }
 if (summary.failed_items > FAILURE_ALERT_COUNT) {

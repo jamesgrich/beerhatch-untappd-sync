@@ -6,13 +6,11 @@ const REPO = "jamesgrich/beerhatch-untappd-sync";
 // repo. workflow_dispatch fires near-instantly, so Netlify's scheduler
 // (separate infra from GH Actions) drives it instead.
 //
-// REVERTED from 5min back to 30min (2026-09-10): hit a "50% of Netlify credits
-// used" alert shortly after tightening to 5min. Root cause unconfirmed — could be
-// this function's invocation frequency, or could be the ~10 redeploys pushed to
-// this repo today (every push triggers a full Netlify rebuild, unrelated to this
-// function's own schedule). 30min ran for hours earlier today with no alert, so
-// reverting to that known-safe baseline until the actual driver is confirmed via
-// the Netlify usage dashboard, rather than guessing further.
+// Confirmed via the Netlify usage dashboard (2026-09-10): the earlier "50% of
+// credits used" alert was from repeated *deploys* (14 deploys = 210 credits =
+// ~all of it) during active development, not from this function's own
+// invocations (compute usage was <1 credit). Safe to run every 5 min — the
+// real lesson was to push fewer, larger commits, not to slow this down.
 export default async () => {
   await axios.post(
     `https://api.github.com/repos/${REPO}/actions/workflows/sync.yml/dispatches`,
@@ -28,5 +26,5 @@ export default async () => {
 };
 
 export const config = {
-  schedule: "*/30 * * * *",
+  schedule: "*/5 * * * *",
 };
