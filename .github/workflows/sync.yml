@@ -1,11 +1,23 @@
 name: Untappd to Shopify Sync
 
+run-name: >-
+  Sync (${{ github.event_name == 'schedule' && 'GH schedule fallback' || inputs.source == 'netlify' && 'Netlify scheduler' || 'manual' }})
+
 on:
-  # Netlify's scheduled function (netlify/functions/trigger-sync.js) now drives this
-  # every 30 min via workflow_dispatch — GH's own `schedule:` trigger got delayed by
-  # hours on this repo regardless of cron offset, and running both doubled collision
-  # risk on the commit step below for no benefit.
+  # Netlify's scheduled function (netlify/functions/trigger-sync.js) is the primary
+  # driver now, firing workflow_dispatch every 30 min — GH's own `schedule:` trigger
+  # got delayed by hours on this repo regardless of cron offset. This schedule is a
+  # TEMPORARY safety net (2hr floor, not 30min) in case the Netlify trigger turns out
+  # not to fire at all — remove once that's confirmed working, to avoid doubling
+  # collision risk on the commit step below for no benefit.
+  schedule:
+    - cron: "17 */2 * * *"
   workflow_dispatch:
+    inputs:
+      source:
+        description: "Who triggered this (netlify / left blank for manual)"
+        required: false
+        default: "manual"
 
 jobs:
   sync:

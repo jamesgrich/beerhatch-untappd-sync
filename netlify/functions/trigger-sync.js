@@ -8,7 +8,7 @@ const REPO = "jamesgrich/beerhatch-untappd-sync";
 export default async () => {
   await axios.post(
     `https://api.github.com/repos/${REPO}/actions/workflows/sync.yml/dispatches`,
-    { ref: "main" },
+    { ref: "main", inputs: { source: "netlify" } },
     {
       headers: {
         Authorization: `Bearer ${process.env.GITHUB_PAT}`,
