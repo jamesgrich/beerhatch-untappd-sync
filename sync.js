@@ -59,6 +59,20 @@ const setProductCategory = async (productId) => {
   }
 };
 
+// Only the fields we actually diff against — if none of these differ from what
+// Shopify already has, the item hasn't meaningfully changed on Untappd and every
+// downstream write (product PUT, variant PUT, category, metafields) can be skipped.
+const needsUpdate = (current, next) => (
+  current.title !== next.title ||
+  current.body_html !== next.body_html ||
+  current.vendor !== next.vendor ||
+  current.tags !== next.tags ||
+  current.option1 !== next.option1 ||
+  current.barcode !== next.barcode ||
+  (next.price !== undefined && Number(current.price || 0).toFixed(2) !== Number(next.price).toFixed(2)) ||
+  next.needsImage
+);
+
 const setProductMetafields = async (productId, metafields) => {
   try {
     await axios.post(
@@ -86,13 +100,22 @@ const skuMap = new Map(); // SKU → { productId, variantId, hasImage }
 const titleMap = new Map(); // normalized title → { productId, hasImage, variants: [{variantId, sku, option1}] }
 
 try {
-  const allProducts = await fetchAllProducts("id,title,variants,images");
+  const allProducts = await fetchAllProducts("id,title,body_html,vendor,tags,variants,images");
   for (const prod of allProducts) {
     const hasImage = (prod.images || []).length > 0;
+    const productFields = {
+      title: prod.title,
+      body_html: prod.body_html || "",
+      vendor: prod.vendor || "",
+      tags: prod.tags || "",
+    };
     titleMap.set(prod.title.trim().toLowerCase(), {
       productId: prod.id,
       hasImage,
-      variants: (prod.variants || []).map(v => ({ variantId: v.id, sku: v.sku, option1: v.option1 })),
+      ...productFields,
+      variants: (prod.variants || []).map(v => ({
+        variantId: v.id, sku: v.sku, option1: v.option1, price: v.price, barcode: v.barcode || "",
+      })),
     });
     for (const variant of (prod.variants || [])) {
       if (variant.sku) {
@@ -100,6 +123,10 @@ try {
           productId: prod.id,
           variantId: variant.id,
           hasImage,
+          ...productFields,
+          option1: variant.option1,
+          price: variant.price,
+          barcode: variant.barcode || "",
         });
       }
     }
@@ -113,6 +140,7 @@ const summary = {
   total_items_checked: 0,
   new_beers_added: 0,
   existing_beers_updated: 0,
+  unchanged_items: 0,
   failed_items: 0,
 };
 
@@ -177,7 +205,18 @@ for (const menu of menuIds) {
 
     if (skuMap.has(expectedSku)) {
       // --- UPDATE existing variant ---
-      const { productId, variantId, hasImage } = skuMap.get(expectedSku);
+      const cached = skuMap.get(expectedSku);
+      const { productId, variantId, hasImage } = cached;
+
+      if (!needsUpdate(cached, {
+        title: formattedTitle, body_html: bodyHtml, vendor: brewery, tags,
+        option1: sizeOptionValue, barcode: item.upc || "", price: variantPrice,
+        needsImage: !!(labelImage && !hasImage),
+      })) {
+        summary.unchanged_items++;
+        continue;
+      }
+
       try {
         const productPayload = {
           product: {
@@ -217,7 +256,6 @@ for (const menu of menuIds) {
           { headers: shopifyHeaders }
         );
 
-        await setProductCategory(productId);
         await setProductMetafields(productId, metafields);
         summary.existing_beers_updated++;
         console.log(`Updated: ${formattedTitle} | Size: ${sizeOptionValue}${variantPrice ? ` | £${variantPrice}` : ""}`);
@@ -227,6 +265,9 @@ for (const menu of menuIds) {
       }
     } else if (titleMap.has(formattedTitle.trim().toLowerCase())) {
       // --- RETARGET existing product by title (Untappd re-issued a new item ID, e.g. after OOS delete/re-add) ---
+      // Always writes: the SKU itself is stale here (that's why we matched by
+      // title instead), so there's no "unchanged" case to diff against — skipping
+      // would leave the variant permanently pointed at the old SKU.
       const { productId, hasImage, variants } = titleMap.get(formattedTitle.trim().toLowerCase());
       const existingVariant = variants.find(v => v.option1 === sizeOptionValue) || variants[0];
       try {
@@ -268,7 +309,6 @@ for (const menu of menuIds) {
           { headers: shopifyHeaders }
         );
 
-        await setProductCategory(productId);
         await setProductMetafields(productId, metafields);
         summary.existing_beers_updated++;
         skuMap.set(expectedSku, { productId, variantId: existingVariant.variantId, hasImage });
@@ -341,6 +381,7 @@ console.log("\n--- Sync complete ---");
 console.log(`Total checked: ${summary.total_items_checked}`);
 console.log(`Created: ${summary.new_beers_added}`);
 console.log(`Updated: ${summary.existing_beers_updated}`);
+console.log(`Unchanged (skipped): ${summary.unchanged_items}`);
 console.log(`Failed: ${summary.failed_items}`);
 
 // Write products.json for the Netlify photo uploader
