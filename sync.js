@@ -455,11 +455,21 @@ for (const menu of menuIds) {
 }
 
 // --- ARCHIVE ITEMS NO LONGER ON UNTAPPD'S MENU ---
-// Guard against a total Untappd fetch failure: if we checked zero items, we have
-// no idea what's actually on the menu, so archiving anything based on "not seen"
-// would be wrong — likely a mass false-positive wipe. Skip archival entirely.
-if (summary.total_items_checked > 0) {
-  const newMissState = {};
+// Guard against a partial/bad Untappd fetch: not just "zero items" (the old guard),
+// but any implausible DROP from the recent baseline menu size. Observed live: menu
+// size alternated between ~331 and ~169 depending on which external scheduler
+// triggered the run (likely a caching/routing quirk on Untappd's or a CDN's side,
+// cause unconfirmed) — a plain ">0" check would have sailed straight through that
+// and, without the separate 2-miss buffer catching it by luck, could have archived
+// ~162 real, currently-listed beers. A run whose count is well below the recent
+// baseline gets treated the same as a total failure: skip archival, don't touch
+// miss-state, and alert — because "fewer than expected" is exactly as untrustworthy
+// as "zero", just less obviously so.
+const menuBaseline = missState.__menuBaseline || 0;
+const menuSizeImplausible = menuBaseline > 0 && summary.total_items_checked < menuBaseline * 0.8;
+
+if (summary.total_items_checked > 0 && !menuSizeImplausible) {
+  const newMissState = { __menuBaseline: Math.max(menuBaseline, summary.total_items_checked) };
   const archivedThisRun = new Set();
 
   for (const [sku, cached] of skuMap) {
@@ -492,6 +502,12 @@ if (summary.total_items_checked > 0) {
   } catch (err) {
     console.log(`Warning: could not write sync-state.json: ${err.message}`);
   }
+} else if (menuSizeImplausible) {
+  console.log(`Skipping archive pass — menu size ${summary.total_items_checked} is implausibly low vs baseline ${menuBaseline} (likely a partial/bad Untappd fetch).`);
+  await sendAlert(
+    "Untappd menu size dropped suspiciously — archive pass skipped",
+    `This run only found ${summary.total_items_checked} items, vs a recent baseline of ${menuBaseline} (${Math.round(100 * summary.total_items_checked / menuBaseline)}%). That's too large a drop to trust for archiving decisions, so the archive pass was skipped entirely this run — no products were touched. This has likely been happening repeatedly; worth checking why the Untappd fetch size is inconsistent between runs.`
+  );
 } else {
   console.log("Skipping archive pass — 0 items checked this run (likely an Untappd fetch failure).");
 }
