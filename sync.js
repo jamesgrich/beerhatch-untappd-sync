@@ -502,14 +502,26 @@ if (summary.total_items_checked > 0 && !menuSizeImplausible) {
   } catch (err) {
     console.log(`Warning: could not write sync-state.json: ${err.message}`);
   }
-} else if (menuSizeImplausible) {
-  console.log(`Skipping archive pass — menu size ${summary.total_items_checked} is implausibly low vs baseline ${menuBaseline} (likely a partial/bad Untappd fetch).`);
-  await sendAlert(
-    "Untappd menu size dropped suspiciously — archive pass skipped",
-    `This run only found ${summary.total_items_checked} items, vs a recent baseline of ${menuBaseline} (${Math.round(100 * summary.total_items_checked / menuBaseline)}%). That's too large a drop to trust for archiving decisions, so the archive pass was skipped entirely this run — no products were touched. This has likely been happening repeatedly; worth checking why the Untappd fetch size is inconsistent between runs.`
-  );
 } else {
-  console.log("Skipping archive pass — 0 items checked this run (likely an Untappd fetch failure).");
+  // A single bad fetch (e.g. Untappd returning a transient 403) is common and
+  // self-heals on the next run 5 min later — alerting on every one of those is
+  // just noise. Only page once the SAME problem has persisted across 2
+  // consecutive runs, mirroring the miss-streak buffer already used for
+  // archiving above. The streak lives in sync-state.json and resets to 0
+  // implicitly the next time a good run rebuilds that file from scratch.
+  const badFetchStreak = (missState.__badFetchStreak || 0) + 1;
+  console.log(`Skipping archive pass — menu size ${summary.total_items_checked} is implausibly low vs baseline ${menuBaseline} (likely a partial/bad Untappd fetch). Bad-fetch streak: ${badFetchStreak}.`);
+  try {
+    writeFileSync(STATE_FILE, JSON.stringify({ ...missState, __badFetchStreak: badFetchStreak }));
+  } catch (err) {
+    console.log(`Warning: could not write sync-state.json: ${err.message}`);
+  }
+  if (badFetchStreak >= 2) {
+    await sendAlert(
+      "Untappd menu size dropped suspiciously — archive pass skipped",
+      `This run only found ${summary.total_items_checked} items, vs a recent baseline of ${menuBaseline}, for ${badFetchStreak} runs in a row. That's too large a drop to trust for archiving decisions, so the archive pass has been skipped again — no products were touched. This is no longer a one-off blip; worth checking why the Untappd fetch is failing repeatedly.`
+    );
+  }
 }
 
 const elapsedMin = (Date.now() - runStart) / 60000;
