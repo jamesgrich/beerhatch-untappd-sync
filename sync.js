@@ -56,13 +56,31 @@ const sendAlert = async (subject, message) => {
   }
 };
 
+// A single connection-level blip here (seen for real: ETIMEDOUT/ENETUNREACH
+// from the GitHub runner) previously fell straight through to the catalog
+// mapping's catch block, leaving skuMap empty for the whole run — the direct
+// cause of the 2026-09-24 06:15 UTC incident. Retrying a couple of times
+// absorbs a brief network hiccup before it ever gets that far; the empty-map
+// abort further down is the backstop if the fetch is genuinely still down.
+const fetchWithRetry = async (url, attempts = 3) => {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await axios.get(url, { headers: shopifyHeaders });
+    } catch (err) {
+      if (i === attempts) throw err;
+      console.log(`Catalog fetch attempt ${i}/${attempts} failed (${extractError(err)}), retrying...`);
+      await sleep(2000 * i);
+    }
+  }
+};
+
 // Shopify caps a single products.json response at 250 items; walk the
 // Link header's cursor-based pagination to fetch the entire catalog.
 const fetchAllProducts = async (fields) => {
   const all = [];
   let url = `${shopifyBase}/products.json?limit=250&fields=${fields}`;
   while (url) {
-    const res = await axios.get(url, { headers: shopifyHeaders });
+    const res = await fetchWithRetry(url);
     all.push(...(res.data.products || []));
     const link = res.headers["link"];
     const match = link && link.match(/<([^>]+)>;\s*rel="next"/);
@@ -200,6 +218,22 @@ try {
   console.log(`Mapped ${skuMap.size} existing variants across ${titleMap.size} products.`);
 } catch (err) {
   console.log(`Warning mapping catalog: ${extractError(err)}`);
+}
+
+// A store this size should never legitimately have zero existing products
+// mapped — if we get here with an empty map, the catalog fetch above failed
+// (network error, rate limit, etc.) and was merely logged as a warning, not
+// treated as fatal. Continuing would make every Untappd item look "new" and
+// create a duplicate product for the entire menu (this happened for real on
+// 2026-09-24 06:15 UTC — 161 duplicates from one transient ETIMEDOUT). Abort
+// outright rather than risk that; the next run 5 minutes later tries again.
+if (skuMap.size === 0) {
+  console.log("Aborting — mapped 0 existing products, so the catalog fetch above almost certainly failed. Refusing to process the Untappd menu against what looks like an empty catalog.");
+  await sendAlert(
+    "Catalog fetch failed — sync aborted to prevent duplicates",
+    "This run mapped 0 existing Shopify products, which almost certainly means the catalog fetch itself failed (check the Action log for the underlying error, e.g. a network timeout). Rather than treat every Untappd item as brand new and create a duplicate for the entire menu, this run did nothing further and made no changes. It will retry automatically in a few minutes."
+  );
+  process.exit(0);
 }
 
 const summary = {
