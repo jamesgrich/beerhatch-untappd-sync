@@ -51,10 +51,20 @@ jobs:
           if git diff --staged --quiet; then exit 0; fi
           git commit -m "chore: update products.json [skip ci]"
           for i in 1 2 3 4 5; do
-            git push && exit 0
+            if git push; then exit 0; fi
             echo "Push rejected, pulling and retrying ($i/5)..."
-            git pull --rebase origin main
-            sleep $((RANDOM % 8 + 3))
+            if git pull --rebase origin main; then
+              sleep $((RANDOM % 8 + 3))
+              continue
+            fi
+            # A real content conflict (not just "behind") — both runs regenerated
+            # the same single-line products.json, so no amount of retrying will
+            # ever auto-merge it. It's a derived cache, not hand-authored data, so
+            # the concurrent run's already-pushed copy is equally valid: drop ours
+            # rather than looping to a false "failure" for a self-healing race.
+            echo "Rebase conflict — another run already pushed this snapshot; discarding ours."
+            git rebase --abort
+            exit 0
           done
           echo "::error::Failed to push products.json after 5 retries"
           exit 1
