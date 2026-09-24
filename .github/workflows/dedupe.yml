@@ -1,0 +1,23 @@
+name: Deduplicate Shopify products
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Actually delete duplicates? Leave false for a dry-run report first."
+        required: false
+        default: "false"
+
+jobs:
+  dedupe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - run: npm install
+      - run: node dedupe.js
+        env:
+          SHOPIFY_TOKEN: ${{ secrets.SHOPIFY_TOKEN }}
+          APPLY: ${{ inputs.apply }}
